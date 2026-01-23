@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MOG Interactive Eye</title>
+
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: black;
+}
+
+video, svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+</style>
+</head>
+
+<body>
+
+<!-- BACKGROUND VIDEO -->
+<video id="bgVideo" autoplay muted playsinline>
+  <source src="mog.mp4" type="video/mp4">
+</video>
+
+<svg viewBox="0 0 1920 1080">
+
+  <defs>
+  <!-- CLIP MASK: SAME SHAPE AS SCLERA -->
+  <clipPath id="eyeClip">
+    <path d="M962.33,493.61c-19.49,0-37.68,1.86-54.34,4.86-71.06,12.58-115.03,45.81-115.03,45.81,0,0,28.29,27.82,72.52,48.86,27.06,12.96,60.25,23.54,96.65,23.54,34.51,0,67.57-9.5,95.65-21.54,49.86-21.25,84.41-50.85,84.41-50.85,0,0-35.63-23.28-90.41-38.2-25.98-7.14-56.41-12.47-89.45-12.47Z"/>
+  </clipPath>
+
+  <!-- IRIS GRADIENT -->
+  <radialGradient id="irisGrad" cx="963.66" cy="522.85" fx="963.66" fy="522.85" r="80.91" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#ec1c24"/>
+    <stop offset=".12" stop-color="#d61920"/>
+    <stop offset=".37" stop-color="#a01318"/>
+    <stop offset=".72" stop-color="#4a080b"/>
+    <stop offset="1" stop-color="#000"/>
+  </radialGradient>
+
+  <!-- SCLERA GRADIENT -->
+  <radialGradient id="scleraGrad" cx="967.58" cy="555.14" fx="967.58" fy="555.14" r="176.97" gradientTransform="translate(0 340.84) scale(1 .39)" gradientUnits="userSpaceOnUse">
+    <stop offset=".44" stop-color="#999393"/>
+    <stop offset=".56" stop-color="#959090" stop-opacity="1"/>
+    <stop offset=".65" stop-color="#8c8686" stop-opacity=".99"/>
+    <stop offset=".73" stop-color="#7c7777" stop-opacity=".98"/>
+    <stop offset=".81" stop-color="#656161" stop-opacity=".97"/>
+    <stop offset=".88" stop-color="#474444" stop-opacity=".95"/>
+    <stop offset=".94" stop-color="#232222" stop-opacity=".92"/>
+    <stop offset="1" stop-color="#000" stop-opacity=".9"/>
+  </radialGradient>
+</defs>
+
+<!-- MASTER EYE WRAPPER -->
+<g id="eyeOffset"
+   transform="
+     translate(960 540)
+     scale(1)
+     translate(-960 -540)
+     translate(-6 0)
+   "
+   opacity="0"
+>
+
+  <!-- SCLERA -->
+  <path d="M962.33,493.61c-19.49,0-37.68,1.86-54.34,4.86-71.06,12.58-115.03,45.81-115.03,45.81,0,0,28.29,27.82,72.52,48.86,27.06,12.96,60.25,23.54,96.65,23.54,34.51,0,67.57-9.5,95.65-21.54,49.86-21.25,84.41-50.85,84.41-50.85,0,0-35.63-23.28-90.41-38.2-25.98-7.14-56.41-12.47-89.45-12.47h0Z"
+        fill="url(#scleraGrad)"
+  />
+
+  <!-- CLIPPED CONTENT -->
+  <g clip-path="url(#eyeClip)">
+
+    <!-- REFLECTIONS (STATIC, clipped) -->
+    <image href="reflections.png" x="-652" y="-490" width="3090" height="2390" style="filter:url(#screenFilter);"/>
+
+    <!-- IRIS + PUPIL (MOVING) -->
+    <g id="eyeMove">
+      <circle class="cls-1" cx="963.66" cy="522.85" r="80.91" fill="url(#irisGrad)"/>
+      <circle cx="963.66" cy="522.85" r="31.02" fill="black"/>
+    </g>
+
+  </g>
+
+</g>
+
+
+</svg>
+
+<script>
+const eyeMove = document.getElementById("eyeMove");
+const eyeOffset = document.getElementById("eyeOffset");
+const video = document.getElementById("bgVideo");
+
+// Show interactive eye after 4.078s
+video.play();
+video.addEventListener("timeupdate", () => {
+  if (video.currentTime >= 4.078) {
+    video.pause();
+    eyeOffset.setAttribute("opacity", "1");
+  }
+});
+
+// Eye movement
+document.addEventListener("mousemove", (e) => {
+  const x = (e.clientX / window.innerWidth - 0.5) * 120;
+  const y = (e.clientY / window.innerHeight - 0.5) * 60;
+  eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+});
+</script>
+
+</body>
+</html>

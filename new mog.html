@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MOG Eye</title>
+
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: black;
+  overflow: hidden;
+}
+
+video, svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+</style>
+</head>
+
+<body>
+
+<!-- BACKGROUND VIDEO -->
+<video id="bgVideo" autoplay muted playsinline>
+  <source src="mog.mp4" type="video/mp4">
+</video>
+
+<svg viewBox="0 0 1920 1080">
+
+  <defs>
+    <clipPath id="eyeClip">
+      <path d="M962.33,493.61c-19.49,0-37.68,1.86-54.34,4.86-71.06,12.58-115.03,45.81-115.03,45.81,0,0,28.29,27.82,72.52,48.86,27.06,12.96,60.25,23.54,96.65,23.54,34.51,0,67.57-9.5,95.65-21.54,49.86-21.25,84.41-50.85,84.41-50.85,0,0-35.63-23.28-90.41-38.2-25.98-7.14-56.41-12.47-89.45-12.47Z"/>
+    </clipPath>
+
+    <radialGradient id="irisGrad" cx="963.66" cy="522.85" r="80.91" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ec1c24"/>
+      <stop offset=".12" stop-color="#d61920"/>
+      <stop offset=".37" stop-color="#a01318"/>
+      <stop offset=".72" stop-color="#4a080b"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+  </defs>
+
+  <!-- MASTER EYE OFFSET -->
+  <g id="eyeOffset"
+     transform="
+       translate(960 540)
+       scale(1)
+       translate(-960 -540)
+       translate(-6 0)
+     ">
+
+    <!-- SCLERA -->
+    <path
+      d="M962.33,493.61c-19.49,0-37.68,1.86-54.34,4.86-71.06,12.58-115.03,45.81-115.03,45.81,0,0,28.29,27.82,72.52,48.86,27.06,12.96,60.25,23.54,96.65,23.54,34.51,0,67.57-9.5,95.65-21.54,49.86-21.25,84.41-50.85,84.41-50.85,0,0-35.63-23.28-90.41-38.2-25.98-7.14-56.41-12.47-89.45-12.47Z"
+      fill="#999393"
+    />
+
+    <!-- CLIPPED CONTENT -->
+    <g clip-path="url(#eyeClip)">
+
+      <!-- REFLECTION LAYER (STATIC) -->
+      <g id="reflectionOffset"
+         transform="
+           translate(960 540)
+           scale(1)
+           translate(-960 -540)
+         ">
+        <image
+          href="reflections.png"
+          x="880"
+          y="460"
+          width="160"
+          height="120"
+          opacity="1"
+        />
+      </g>
+
+      <!-- EYE MOVEMENT -->
+      <g id="eyeMove">
+        <circle cx="963.66" cy="522.85" r="80.91" fill="url(#irisGrad)"/>
+        <circle cx="963.66" cy="522.85" r="31.02" fill="black"/>
+      </g>
+
+    </g>
+
+  </g>
+
+</svg>
+
+<script>
+const eyeMove = document.getElementById("eyeMove");
+const video = document.getElementById("bgVideo");
+
+video.addEventListener("timeupdate", () => {
+  if (video.currentTime >= 4.078) {
+    video.pause();
+  }
+});
+
+document.addEventListener("mousemove", (e) => {
+  const x = (e.clientX / window.innerWidth - 0.5) * 120;
+  const y = (e.clientY / window.innerHeight - 0.5) * 60;
+
+  eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+});
+</script>
+
+</body>
+</html>
