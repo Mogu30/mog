@@ -121,11 +121,11 @@ video, svg {
 /* ==========================
    TUNING CONTROLS
    ========================== */
-const BLINK_SPEED = 240;          // ms (animation duration)
-const DOUBLE_BLINK_CHANCE = 0.3;  // 0–1
-const DOUBLE_BLINK_DELAY = 180;   // ms
-const BLINK_MIN_DELAY = 2400;     // ms
-const BLINK_MAX_DELAY = 5000;     // ms
+const BLINK_SPEED = 240;
+const DOUBLE_BLINK_CHANCE = 0.3;
+const DOUBLE_BLINK_DELAY = 180;
+const BLINK_MIN_DELAY = 2400;
+const BLINK_MAX_DELAY = 5000;
 
 /* ==========================
    ELEMENTS
@@ -151,16 +151,38 @@ video.addEventListener("timeupdate", () => {
 });
 
 /* ==========================
-   IRIS MOVEMENT
+   SHARED EYE MOVE FUNCTION
    ========================== */
-document.addEventListener("mousemove", (e) => {
+function moveEye(clientX, clientY) {
   if (!eyeActive) return;
 
-  const x = (e.clientX / window.innerWidth  - 0.5) * 120;
-  const y = (e.clientY / window.innerHeight - 0.5) * 60;
+  const x = (clientX / window.innerWidth  - 0.5) * 120;
+  const y = (clientY / window.innerHeight - 0.5) * 60;
 
   eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+}
+
+/* ==========================
+   DESKTOP (MOUSE)
+   ========================== */
+document.addEventListener("mousemove", (e) => {
+  moveEye(e.clientX, e.clientY);
 });
+
+/* ==========================
+   MOBILE (TOUCH)
+   ========================== */
+document.addEventListener("touchstart", (e) => {
+  if (e.touches.length > 0) {
+    moveEye(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: true });
+
+document.addEventListener("touchmove", (e) => {
+  if (e.touches.length > 0) {
+    moveEye(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: true });
 
 /* ==========================
    BLINK LOGIC
@@ -173,11 +195,8 @@ function blinkOnce() {
 }
 
 function blink() {
-  const doubleBlink = Math.random() < DOUBLE_BLINK_CHANCE;
-
   blinkOnce();
-
-  if (doubleBlink) {
+  if (Math.random() < DOUBLE_BLINK_CHANCE) {
     setTimeout(blinkOnce, DOUBLE_BLINK_DELAY);
   }
 }
