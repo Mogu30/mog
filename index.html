@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MOG Eye (PNG Mask)</title>
+<title>MOG Eye (PNG Mask + Blink)</title>
 
 <style>
 html, body {
@@ -20,10 +20,25 @@ video, svg {
   height: 100%;
 }
 
-/* Smooth fade-in */
+/* Fade-in for interactive eye */
 #eyeOffset {
   opacity: 0;
   transition: opacity 0.8s ease;
+}
+
+/* Blink lid */
+#blinkLid {
+  transform-origin: 50% 50%;
+  transform: scaleY(0);
+  pointer-events: none;
+}
+
+/* Blink animation */
+@keyframes blink {
+  0%   { transform: scaleY(0); }
+  45%  { transform: scaleY(1); }
+  55%  { transform: scaleY(1); }
+  100% { transform: scaleY(0); }
 }
 </style>
 </head>
@@ -38,7 +53,7 @@ video, svg {
 <svg viewBox="0 0 1920 1080">
 
   <defs>
-    <!-- PNG MASK (mask.png) -->
+    <!-- PNG MASK -->
     <mask id="eyeMask" maskUnits="userSpaceOnUse">
       <image
         href="mask.png"
@@ -51,10 +66,10 @@ video, svg {
     </mask>
   </defs>
 
-  <!-- EVERYTHING APPEARS TOGETHER -->
+  <!-- INTERACTIVE EYE -->
   <g id="eyeOffset">
 
-    <!-- SCLERA (VISIBLE ONLY) -->
+    <!-- SCLERA -->
     <image
       href="White.png"
       x="0"
@@ -86,6 +101,16 @@ video, svg {
         height="2390"
       />
 
+      <!-- BLINK LID -->
+      <rect
+        id="blinkLid"
+        x="0"
+        y="0"
+        width="1920"
+        height="1080"
+        fill="black"
+      />
+
     </g>
 
   </g>
@@ -93,33 +118,79 @@ video, svg {
 </svg>
 
 <script>
-const eyeMove = document.getElementById("eyeMove");
+/* ==========================
+   TUNING CONTROLS
+   ========================== */
+const BLINK_SPEED = 240;          // ms (animation duration)
+const DOUBLE_BLINK_CHANCE = 0.3;  // 0–1
+const DOUBLE_BLINK_DELAY = 180;   // ms
+const BLINK_MIN_DELAY = 2400;     // ms
+const BLINK_MAX_DELAY = 5000;     // ms
+
+/* ==========================
+   ELEMENTS
+   ========================== */
+const eyeMove   = document.getElementById("eyeMove");
 const eyeOffset = document.getElementById("eyeOffset");
-const video = document.getElementById("bgVideo");
+const blinkLid  = document.getElementById("blinkLid");
+const video     = document.getElementById("bgVideo");
 
 let eyeActive = false;
 
-// Pause video + fade eye in
+/* ==========================
+   VIDEO TIMING
+   ========================== */
 video.addEventListener("timeupdate", () => {
   if (!eyeActive && video.currentTime >= 4.078) {
     video.pause();
+    video.currentTime = 0;
     eyeOffset.style.opacity = "1";
     eyeActive = true;
+    startBlinking();
   }
 });
 
-// Mouse-driven iris movement
+/* ==========================
+   IRIS MOVEMENT
+   ========================== */
 document.addEventListener("mousemove", (e) => {
   if (!eyeActive) return;
 
-  const x = (e.clientX / window.innerWidth - 0.5) * 120;
+  const x = (e.clientX / window.innerWidth  - 0.5) * 120;
   const y = (e.clientY / window.innerHeight - 0.5) * 60;
 
-  eyeMove.setAttribute(
-    "transform",
-    `translate(${x}, ${y})`
-  );
+  eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
 });
+
+/* ==========================
+   BLINK LOGIC
+   ========================== */
+function blinkOnce() {
+  blinkLid.style.animation = `blink ${BLINK_SPEED}ms ease-in-out`;
+  blinkLid.addEventListener("animationend", () => {
+    blinkLid.style.animation = "";
+  }, { once: true });
+}
+
+function blink() {
+  const doubleBlink = Math.random() < DOUBLE_BLINK_CHANCE;
+
+  blinkOnce();
+
+  if (doubleBlink) {
+    setTimeout(blinkOnce, DOUBLE_BLINK_DELAY);
+  }
+}
+
+function startBlinking() {
+  (function loop() {
+    blink();
+    const delay =
+      BLINK_MIN_DELAY +
+      Math.random() * (BLINK_MAX_DELAY - BLINK_MIN_DELAY);
+    setTimeout(loop, delay);
+  })();
+}
 </script>
 
 </body>
