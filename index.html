@@ -228,7 +228,7 @@ class SequenceIcon {
         if (!this.isHolding) {
           const distance = Math.abs(this.targetFrame - this.currentFrame);
           let easingSpeed = this.speed * this.forwardSpeed;
-          if (distance < 2) easingSpeed = 0.5;
+          if (distance < 2) easingSpeed = 0;
           this.currentFrame += (this.targetFrame - this.currentFrame) * easingSpeed;
           if (distance < 0.1) this.currentFrame = this.targetFrame;
         }
