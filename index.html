@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MOG </title>
+<title>MOG Eye (PNG Mask + Blink)</title>
 
 <style>
 html, body {
@@ -11,6 +11,17 @@ html, body {
   height: 100%;
   background: black;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  max-width: calc(100vh * 16 / 9);
+  max-height: calc(100vw * 9 / 16);
 }
 
 #bgVideo {
@@ -18,7 +29,7 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   z-index: 0;
 }
 
@@ -72,6 +83,7 @@ svg {
 
 <body>
 
+<div id="container">
 <video id="bgVideo" autoplay muted playsinline>
   <source src="mog.mp4" type="video/mp4">
 </video>
@@ -88,7 +100,7 @@ svg {
     </mask>
   </defs>
 
-  <g id="eyeContainer" transform="translate(960,540) scale(1.15) translate(-960,-540)">
+  <g id="eyeContainer" transform="translate(960,540) scale(1) translate(-960,-540)">
     <g id="eyeOffset">
       <image href="White.png" x="0" y="0" width="1920" height="1080"/>
       <g mask="url(#eyeMask)">
@@ -101,6 +113,7 @@ svg {
     </g>
   </g>
 </svg>
+</div>
 
 <script>
 /* ========================================================================
@@ -116,15 +129,15 @@ const CHARGE_TIME = 2000;              // ← CHANGE THIS for charge delay
 // Try values between 0.1 (slow) to 1.0 (very fast)
 
 // ART ICON
-const ART_FORWARD_SPEED = 0.5;   // ← Forward animation speed
-const ART_REVERSE_SPEED = 0.2;   // ← Reverse animation speed
+const ART_FORWARD_SPEED = 2;   // ← Forward animation speed
+const ART_REVERSE_SPEED = 0.3;   // ← Reverse animation speed
 
 // EDU ICON
-const EDU_FORWARD_SPEED = 1.2;   // ← Forward animation speed
+const EDU_FORWARD_SPEED = 0.3;   // ← Forward animation speed
 const EDU_REVERSE_SPEED = 0.3;   // ← Reverse animation speed
 
 // CONTACTS ICON
-const CONTACTS_FORWARD_SPEED = 0.5;   // ← Forward animation speed
+const CONTACTS_FORWARD_SPEED = 0.85;   // ← Forward animation speed
 const CONTACTS_REVERSE_SPEED = 0.3;   // ← Reverse animation speed
 
 // WORK ICON (loops instead of holding)
@@ -137,22 +150,26 @@ const DESIGN_WIDTH = 1920;
 const DESIGN_HEIGHT = 1080;
 
 const iconSettings = {
-  "icon-art":      { x: 320,  y: 870, scale: 2.6 },
-  "icon-edu":      { x: 230,  y: 190, scale: 2.7 },
-  "icon-work":     { x: 1686, y: 202, scale: 2.45 },
-  "icon-contacts": { x: 1690, y: 840, scale: 2.7 }
+  "icon-art":      { x: 220,  y: 810, scale: 2.5 },
+  "icon-edu":      { x: 230,  y: 225, scale: 2.5 },
+  "icon-work":     { x: 1690, y: 235, scale: 2.25 },
+  "icon-contacts": { x: 1690, y: 810, scale: 2.35 }
 };
 
 function positionIcons() {
+  const container = document.getElementById('container');
+  const containerWidth = container.offsetWidth;
+  const containerHeight = container.offsetHeight;
+  
   for (const id in iconSettings) {
     const el = document.getElementById(id);
     const s = iconSettings[id];
-    const scaleX = window.innerWidth / DESIGN_WIDTH;
-    const scaleY = window.innerHeight / DESIGN_HEIGHT;
+    const scaleX = containerWidth / DESIGN_WIDTH;
+    const scaleY = containerHeight / DESIGN_HEIGHT;
     const scale = Math.min(scaleX, scaleY);
 
-    el.style.left = (s.x / DESIGN_WIDTH) * 100 + "vw";
-    el.style.top  = (s.y / DESIGN_HEIGHT) * 100 + "vh";
+    el.style.left = (s.x / DESIGN_WIDTH) * 100 + "%";
+    el.style.top  = (s.y / DESIGN_HEIGHT) * 100 + "%";
     el.style.transform = `translate(-50%, -50%) scale(${s.scale * scale})`;
   }
 }
@@ -277,7 +294,7 @@ new SequenceIcon(
   document.getElementById('icon-edu'), 
   25,                    // frame count
   'edu',                 // folder
-  12,                    // hold frame
+  24,                    // hold frame
   0.025,                 // base speed
   EDU_FORWARD_SPEED,     // forward speed
   EDU_REVERSE_SPEED      // reverse speed
