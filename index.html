@@ -13,27 +13,54 @@ html, body {
   overflow: hidden;
 }
 
-video, svg {
+#bgVideo {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  z-index: 0;
 }
 
-/* Fade-in for interactive eye */
+svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.icon {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  transform-origin: center center;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: pointer;
+  filter: drop-shadow(0 0 0px rgba(0,0,0,0));
+  transition: filter 2s ease;
+}
+
+.icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
 #eyeOffset {
   opacity: 0;
   transition: opacity 0.8s ease;
 }
 
-/* Blink lid */
 #blinkLid {
   transform-origin: 50% 50%;
   transform: scaleY(0);
   pointer-events: none;
 }
 
-/* Blink animation */
 @keyframes blink {
   0%   { transform: scaleY(0); }
   45%  { transform: scaleY(1); }
@@ -45,153 +72,274 @@ video, svg {
 
 <body>
 
-<!-- BACKGROUND VIDEO -->
 <video id="bgVideo" autoplay muted playsinline>
   <source src="mog.mp4" type="video/mp4">
 </video>
 
-<svg viewBox="0 0 1920 1080">
+<div class="icon" id="icon-art"><img src="frames/art/Frame_00000.png" alt="Art"></div>
+<div class="icon" id="icon-edu"><img src="frames/edu/Frame_00000.png" alt="Education"></div>
+<div class="icon" id="icon-contacts"><img src="frames/contacts/Frame_00000.png" alt="Contacts"></div>
+<div class="icon" id="icon-work"><img src="frames/work/Frame_00000.png" alt="Work"></div>
 
+<svg viewBox="0 0 1920 1080">
   <defs>
-    <!-- PNG MASK -->
     <mask id="eyeMask" maskUnits="userSpaceOnUse">
-      <image
-        href="mask.png"
-        x="0"
-        y="0"
-        width="1920"
-        height="1080"
-        preserveAspectRatio="none"
-      />
+      <image href="mask.png" x="0" y="0" width="1920" height="1080" preserveAspectRatio="none"/>
     </mask>
   </defs>
 
-  <!-- INTERACTIVE EYE -->
-  <g id="eyeOffset">
-
-    <!-- SCLERA -->
-    <image
-      href="White.png"
-      x="0"
-      y="0"
-      width="1920"
-      height="1080"
-    />
-
-    <!-- MASKED CONTENT -->
-    <g mask="url(#eyeMask)">
-
-      <!-- IRIS (MOVES) -->
-      <g id="eyeMove">
-        <image
-          href="Iris.png"
-          x="0"
-          y="0"
-          width="1920"
-          height="1080"
-        />
+  <g id="eyeContainer" transform="translate(960,540) scale(1.15) translate(-960,-540)">
+    <g id="eyeOffset">
+      <image href="White.png" x="0" y="0" width="1920" height="1080"/>
+      <g mask="url(#eyeMask)">
+        <g id="eyeMove">
+          <image href="Iris.png" x="0" y="0" width="1920" height="1080"/>
+        </g>
+        <image href="reflections.png" x="-690" y="-487" width="3090" height="2390" style="mix-blend-mode: screen;" />
+        <rect id="blinkLid" x="0" y="0" width="1920" height="1080" fill="black"/>
       </g>
-
-      <!-- REFLECTIONS (STATIC, ON TOP, CLIPPED) -->
-      <image
-        href="reflections.png"
-        x="-690"
-        y="-487"
-        width="3090"
-        height="2390"
-      />
-
-      <!-- BLINK LID -->
-      <rect
-        id="blinkLid"
-        x="0"
-        y="0"
-        width="1920"
-        height="1080"
-        fill="black"
-      />
-
     </g>
-
   </g>
-
 </svg>
 
 <script>
-/* ==========================
-   TUNING CONTROLS
-   ========================== */
+/* ========================================================================
+   ANIMATION SPEED CONTROLS - TWEAK THESE VALUES!
+   ======================================================================== */
+
+// CHARGE TIME (how long to hover before animation starts)
+// In milliseconds: 1000 = 1 second, 2000 = 2 seconds
+const CHARGE_TIME = 2000;              // ← CHANGE THIS for charge delay
+
+// INDIVIDUAL ICON SPEEDS
+// Higher values = faster animation
+// Try values between 0.1 (slow) to 1.0 (very fast)
+
+// ART ICON
+const ART_FORWARD_SPEED = 0.5;   // ← Forward animation speed
+const ART_REVERSE_SPEED = 0.2;   // ← Reverse animation speed
+
+// EDU ICON
+const EDU_FORWARD_SPEED = 1.2;   // ← Forward animation speed
+const EDU_REVERSE_SPEED = 0.3;   // ← Reverse animation speed
+
+// CONTACTS ICON
+const CONTACTS_FORWARD_SPEED = 0.5;   // ← Forward animation speed
+const CONTACTS_REVERSE_SPEED = 0.3;   // ← Reverse animation speed
+
+// WORK ICON (loops instead of holding)
+const WORK_LOOP_SPEED = 0.2;     // ← Loop speed when charged
+const WORK_REVERSE_SPEED = 0.3;  // ← Reverse animation speed
+
+/* ======================================================================== */
+
+const DESIGN_WIDTH = 1920;
+const DESIGN_HEIGHT = 1080;
+
+const iconSettings = {
+  "icon-art":      { x: 320,  y: 870, scale: 2.6 },
+  "icon-edu":      { x: 230,  y: 190, scale: 2.7 },
+  "icon-work":     { x: 1686, y: 202, scale: 2.45 },
+  "icon-contacts": { x: 1690, y: 840, scale: 2.7 }
+};
+
+function positionIcons() {
+  for (const id in iconSettings) {
+    const el = document.getElementById(id);
+    const s = iconSettings[id];
+    const scaleX = window.innerWidth / DESIGN_WIDTH;
+    const scaleY = window.innerHeight / DESIGN_HEIGHT;
+    const scale = Math.min(scaleX, scaleY);
+
+    el.style.left = (s.x / DESIGN_WIDTH) * 100 + "vw";
+    el.style.top  = (s.y / DESIGN_HEIGHT) * 100 + "vh";
+    el.style.transform = `translate(-50%, -50%) scale(${s.scale * scale})`;
+  }
+}
+positionIcons();
+window.addEventListener('resize', positionIcons);
+
+class SequenceIcon {
+  constructor(element, frameCount, folder, holdFrame = null, speed = 0.04, forwardSpeed = 0.5, reverseSpeed = 0.3, loopSpeed = 0.2) {
+    this.element = element;
+    this.img = element.querySelector('img');
+    this.frameCount = frameCount;
+    this.folder = folder;
+    this.holdFrame = holdFrame;
+    this.speed = speed;
+    this.forwardSpeed = forwardSpeed;
+    this.reverseSpeed = reverseSpeed;
+    this.loopSpeed = loopSpeed;
+
+    this.currentFrame = 0;
+    this.targetFrame = 0;
+    this.isHovering = false;
+    this.isHolding = false;
+    this.isCharged = false;
+    this.chargeTimer = null;
+
+    this.preloadFrames();
+    this.setupListeners();
+    this.animate();
+  }
+
+  preloadFrames() {
+    this.frames = [];
+    for (let i = 0; i < this.frameCount; i++) {
+      const img = new Image();
+      const frameNum = String(i).padStart(5, '0');
+      img.src = `frames/${this.folder}/Frame_${frameNum}.png`;
+      this.frames.push(img);
+    }
+  }
+
+  setupListeners() {
+    this.element.addEventListener('mouseenter', () => {
+      this.isHovering = true;
+      this.isCharged = false;
+
+      // MAXIMUM ABYSS GLOW
+      this.element.style.filter =
+  	"drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))";
+
+      this.chargeTimer = setTimeout(() => {
+        this.isCharged = true;
+        if (this.holdFrame !== null) {
+          this.targetFrame = this.holdFrame;
+        }
+      }, CHARGE_TIME);
+    });
+
+    this.element.addEventListener('mouseleave', () => {
+      this.isHovering = false;
+      this.isHolding = false;
+      this.isCharged = false;
+      this.targetFrame = 0;
+      this.element.style.filter = "drop-shadow(0 0 0px rgba(0,0,0,0))";
+      clearTimeout(this.chargeTimer);
+    });
+  }
+
+  animate() {
+    if (this.isCharged) {
+      // FORWARD ANIMATION (when charged)
+      if (this.holdFrame === null) {
+        // Work icon: loop continuously
+        this.currentFrame += this.speed * this.frameCount * this.loopSpeed;
+        if (this.currentFrame >= this.frameCount - 1) {
+          this.currentFrame = 0;
+        }
+      } else {
+        // Other icons: animate to hold frame
+        if (this.isHovering && !this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
+          this.isHolding = true;
+          this.currentFrame = this.holdFrame;
+          this.targetFrame = this.holdFrame;
+        }
+
+        if (!this.isHolding) {
+          const distance = Math.abs(this.targetFrame - this.currentFrame);
+          let easingSpeed = this.speed * this.forwardSpeed;
+          if (distance < 2) easingSpeed = 0.5;
+          this.currentFrame += (this.targetFrame - this.currentFrame) * easingSpeed;
+          if (distance < 0.1) this.currentFrame = this.targetFrame;
+        }
+      }
+    } else {
+      // REVERSE ANIMATION (when not charged)
+      if (this.currentFrame > 0) {
+        this.currentFrame -= this.speed * this.frameCount * this.reverseSpeed;
+        if (this.currentFrame < 0) this.currentFrame = 0;
+      }
+    }
+
+    const frameIndex = Math.round(this.currentFrame);
+    if (this.frames[frameIndex] && this.frames[frameIndex].complete) {
+      this.img.src = this.frames[frameIndex].src;
+    }
+
+    requestAnimationFrame(() => this.animate());
+  }
+}
+
+// Initialize icons with individual speed controls
+new SequenceIcon(
+  document.getElementById('icon-art'), 
+  28,                    // frame count
+  'art',                 // folder
+  20,                    // hold frame
+  0.028,                 // base speed
+  ART_FORWARD_SPEED,     // forward speed
+  ART_REVERSE_SPEED      // reverse speed
+);
+
+new SequenceIcon(
+  document.getElementById('icon-edu'), 
+  25,                    // frame count
+  'edu',                 // folder
+  12,                    // hold frame
+  0.025,                 // base speed
+  EDU_FORWARD_SPEED,     // forward speed
+  EDU_REVERSE_SPEED      // reverse speed
+);
+
+new SequenceIcon(
+  document.getElementById('icon-contacts'), 
+  30,                        // frame count
+  'contacts',                // folder
+  12,                        // hold frame
+  0.030,                     // base speed
+  CONTACTS_FORWARD_SPEED,    // forward speed
+  CONTACTS_REVERSE_SPEED     // reverse speed
+);
+
+new SequenceIcon(
+  document.getElementById('icon-work'), 
+  29,                    // frame count
+  'work',                // folder
+  null,                  // no hold frame (loops)
+  0.029,                 // base speed
+  null,                  // forward speed (not used for work)
+  WORK_REVERSE_SPEED,    // reverse speed
+  WORK_LOOP_SPEED        // loop speed
+);
+
+/* Eye system unchanged */
 const BLINK_SPEED = 240;
 const DOUBLE_BLINK_CHANCE = 0.3;
 const DOUBLE_BLINK_DELAY = 180;
 const BLINK_MIN_DELAY = 2400;
 const BLINK_MAX_DELAY = 5000;
 
-/* ==========================
-   ELEMENTS
-   ========================== */
 const eyeMove   = document.getElementById("eyeMove");
 const eyeOffset = document.getElementById("eyeOffset");
 const blinkLid  = document.getElementById("blinkLid");
-const video     = document.getElementById("bgVideo");
+const bgVideo   = document.getElementById("bgVideo");
 
 let eyeActive = false;
 
-/* ==========================
-   VIDEO TIMING
-   ========================== */
-video.addEventListener("timeupdate", () => {
-  if (!eyeActive && video.currentTime >= 4.078) {
-    video.pause();
-    video.currentTime = 0;
+bgVideo.addEventListener("timeupdate", () => {
+  if (!eyeActive && bgVideo.currentTime >= 4.078) {
+    bgVideo.pause();
+    bgVideo.currentTime = 0;
     eyeOffset.style.opacity = "1";
     eyeActive = true;
     startBlinking();
   }
 });
 
-/* ==========================
-   SHARED EYE MOVE FUNCTION
-   ========================== */
 function moveEye(clientX, clientY) {
   if (!eyeActive) return;
-
   const x = (clientX / window.innerWidth  - 0.5) * 120;
   const y = (clientY / window.innerHeight - 0.5) * 60;
-
   eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
 }
 
-/* ==========================
-   DESKTOP (MOUSE)
-   ========================== */
-document.addEventListener("mousemove", (e) => {
-  moveEye(e.clientX, e.clientY);
-});
+document.addEventListener("mousemove", (e) => moveEye(e.clientX, e.clientY));
 
-/* ==========================
-   MOBILE (TOUCH)
-   ========================== */
-document.addEventListener("touchstart", (e) => {
-  if (e.touches.length > 0) {
-    moveEye(e.touches[0].clientX, e.touches[0].clientY);
-  }
-}, { passive: true });
-
-document.addEventListener("touchmove", (e) => {
-  if (e.touches.length > 0) {
-    moveEye(e.touches[0].clientX, e.touches[0].clientY);
-  }
-}, { passive: true });
-
-/* ==========================
-   BLINK LOGIC
-   ========================== */
 function blinkOnce() {
   blinkLid.style.animation = `blink ${BLINK_SPEED}ms ease-in-out`;
-  blinkLid.addEventListener("animationend", () => {
-    blinkLid.style.animation = "";
-  }, { once: true });
+  blinkLid.addEventListener("animationend", () => blinkLid.style.animation = "", { once: true });
 }
 
 function blink() {
@@ -204,9 +352,7 @@ function blink() {
 function startBlinking() {
   (function loop() {
     blink();
-    const delay =
-      BLINK_MIN_DELAY +
-      Math.random() * (BLINK_MAX_DELAY - BLINK_MIN_DELAY);
+    const delay = BLINK_MIN_DELAY + Math.random() * (BLINK_MAX_DELAY - BLINK_MIN_DELAY);
     setTimeout(loop, delay);
   })();
 }
