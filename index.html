@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MOG</title>
+<title>MOG Eye (PNG Mask + Blink)</title>
 
 <style>
 html, body {
@@ -38,6 +38,43 @@ html, body {
   display: none;
 }
 
+/* Main home page content */
+#mainContent {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Contacts Page - same level as main content */
+#contactsPage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: black;
+  color: white;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  font-family: Arial, sans-serif;
+}
+
+/* Transition GIF - plays ON TOP of everything as an overlay */
+#transitionGif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 999;  /* Above everything */
+  display: none;
+  pointer-events: none;
+}
+
 svg {
   position: absolute;
   inset: 0;
@@ -55,7 +92,7 @@ svg {
   pointer-events: auto;
   cursor: pointer;
   filter: drop-shadow(0 0 0px rgba(0,0,0,0));
-  transition: filter 2s ease;
+  transition: filter 0.5s ease;
 }
 
 .icon img {
@@ -83,6 +120,37 @@ svg {
   55%  { transform: scaleY(1); }
   100% { transform: scaleY(0); }
 }
+
+#contactsPage h1 {
+  font-size: 4rem;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5rem;
+}
+
+#contactsPage p {
+  font-size: 1.5rem;
+  margin-bottom: 3rem;
+  opacity: 0.7;
+}
+
+#backButton {
+  padding: 1rem 3rem;
+  font-size: 1.2rem;
+  background: white;
+  color: black;
+  border: none;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.2rem;
+  transition: all 0.3s ease;
+}
+
+#backButton:hover {
+  background: #333;
+  color: white;
+  transform: scale(1.05);
+}
 </style>
 </head>
 
@@ -91,40 +159,54 @@ svg {
 <div id="container">
   <img id="bgGif" src="mog.gif" alt="">
   <canvas id="bgFreeze"></canvas>
+  
+  <!-- Main home page with eye and icons -->
+  <div id="mainContent">
+    <div class="icon" id="icon-art"><img src="frames/art/Frame_00000.png" alt="Art"></div>
+    <div class="icon" id="icon-edu"><img src="frames/edu/Frame_00000.png" alt="Education"></div>
+    <div class="icon" id="icon-contacts"><img src="frames/contacts/Frame_00000.png" alt="Contacts"></div>
+    <div class="icon" id="icon-work"><img src="frames/work/Frame_00000.png" alt="Work"></div>
 
-  <div class="icon" id="icon-art"><img src="frames/art/Frame_00000.png" alt="Art"></div>
-  <div class="icon" id="icon-edu"><img src="frames/edu/Frame_00000.png" alt="Education"></div>
-  <div class="icon" id="icon-contacts"><img src="frames/contacts/Frame_00000.png" alt="Contacts"></div>
-  <div class="icon" id="icon-work"><img src="frames/work/Frame_00000.png" alt="Work"></div>
+    <svg viewBox="0 0 1920 1080">
+      <defs>
+        <mask id="eyeMask" maskUnits="userSpaceOnUse">
+          <image href="mask.png" x="0" y="0" width="1920" height="1080" preserveAspectRatio="none"/>
+        </mask>
+      </defs>
 
-  <svg viewBox="0 0 1920 1080">
-    <defs>
-      <mask id="eyeMask" maskUnits="userSpaceOnUse">
-        <image href="mask.png" x="0" y="0" width="1920" height="1080" preserveAspectRatio="none"/>
-      </mask>
-    </defs>
-
-    <g id="eyeContainer" transform="translate(960,535) scale(1) translate(-960,-540)">
-      <g id="eyeOffset">
-        <image href="White.png" x="0" y="0" width="1920" height="1080"/>
-        <g mask="url(#eyeMask)">
-          <g id="eyeMove">
-            <image href="Iris.png" x="0" y="0" width="1920" height="1080"/>
+      <g id="eyeContainer" transform="translate(960,535) scale(1) translate(-960,-540)">
+        <g id="eyeOffset">
+          <image href="White.png" x="0" y="0" width="1920" height="1080"/>
+          <g mask="url(#eyeMask)">
+            <g id="eyeMove">
+              <image href="Iris.png" x="0" y="0" width="1920" height="1080"/>
+            </g>
+            <image href="reflections.png" x="-690" y="-487" width="3090" height="2390" style="mix-blend-mode: screen;" />
+            <rect id="blinkLid" x="0" y="0" width="1920" height="1080" fill="black"/>
           </g>
-          <image href="reflections.png" x="-690" y="-487" width="3090" height="2390" style="mix-blend-mode: screen;" />
-          <rect id="blinkLid" x="0" y="0" width="1920" height="1080" fill="black"/>
         </g>
       </g>
-    </g>
-  </svg>
+    </svg>
+  </div>
+  
+  <!-- Contacts Page (hidden by default) -->
+  <div id="contactsPage">
+    <h1>Contacts</h1>
+    <p>This is the contacts page content.</p>
+    <p>You can add your contact information here!</p>
+    <button id="backButton">← Back to Home</button>
+  </div>
+  
+  <!-- Transition GIF overlay (plays on top of current page) -->
+  <img id="transitionGif" src="" alt="">
 </div>
 
 <script>
 /* ======================================================================== */
-/* ICON SYSTEM (UNCHANGED) */
+/* ICON SYSTEM */
 /* ======================================================================== */
 
-const CHARGE_TIME = 2000;
+const CHARGE_TIME = 500;
 const ART_FORWARD_SPEED = 2;
 const ART_REVERSE_SPEED = 0.3;
 const EDU_FORWARD_SPEED = 0.3;
@@ -181,10 +263,12 @@ class SequenceIcon {
     this.isHolding = false;
     this.isCharged = false;
     this.chargeTimer = null;
+    this.isClickable = false;
     this.preloadFrames();
     this.setupListeners();
     this.animate();
   }
+  
   preloadFrames() {
     this.frames = [];
     for (let i = 0; i < this.frameCount; i++) {
@@ -194,10 +278,12 @@ class SequenceIcon {
       this.frames.push(img);
     }
   }
+  
   setupListeners() {
     this.element.addEventListener('mouseenter', () => {
       this.isHovering = true;
       this.isCharged = false;
+      this.isClickable = false;
       this.element.style.filter =
         "drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))";
       this.chargeTimer = setTimeout(() => {
@@ -205,15 +291,18 @@ class SequenceIcon {
         if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
       }, CHARGE_TIME);
     });
+    
     this.element.addEventListener('mouseleave', () => {
       this.isHovering = false;
       this.isHolding = false;
       this.isCharged = false;
+      this.isClickable = false;
       this.targetFrame = 0;
       this.element.style.filter = "drop-shadow(0 0 0px rgba(0,0,0,0))";
       clearTimeout(this.chargeTimer);
     });
   }
+  
   animate() {
     if (this.isCharged) {
       if (this.holdFrame === null) {
@@ -222,6 +311,7 @@ class SequenceIcon {
       } else {
         if (this.isHovering && !this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
           this.isHolding = true;
+          this.isClickable = true;
           this.currentFrame = this.holdFrame;
           this.targetFrame = this.holdFrame;
         }
@@ -239,6 +329,7 @@ class SequenceIcon {
         if (this.currentFrame < 0) this.currentFrame = 0;
       }
     }
+    
     const frameIndex = Math.round(this.currentFrame);
     if (this.frames[frameIndex] && this.frames[frameIndex].complete) {
       this.img.src = this.frames[frameIndex].src;
@@ -247,10 +338,187 @@ class SequenceIcon {
   }
 }
 
-new SequenceIcon(document.getElementById('icon-art'),28,'art',20,0.028,ART_FORWARD_SPEED,ART_REVERSE_SPEED);
-new SequenceIcon(document.getElementById('icon-edu'),21,'edu',24,0.025,EDU_FORWARD_SPEED,EDU_REVERSE_SPEED);
-new SequenceIcon(document.getElementById('icon-contacts'),30,'contacts',12,0.030,CONTACTS_FORWARD_SPEED,CONTACTS_REVERSE_SPEED);
-new SequenceIcon(document.getElementById('icon-work'),29,'work',null,0.029,null,WORK_REVERSE_SPEED,WORK_LOOP_SPEED);
+const artIcon = new SequenceIcon(document.getElementById('icon-art'),28,'art',20,0.028,ART_FORWARD_SPEED,ART_REVERSE_SPEED);
+const eduIcon = new SequenceIcon(document.getElementById('icon-edu'),21,'edu',24,0.025,EDU_FORWARD_SPEED,EDU_REVERSE_SPEED);
+const contactsIcon = new SequenceIcon(document.getElementById('icon-contacts'),30,'contacts',12,0.030,CONTACTS_FORWARD_SPEED,CONTACTS_REVERSE_SPEED);
+const workIcon = new SequenceIcon(document.getElementById('icon-work'),29,'work',null,0.029,null,WORK_REVERSE_SPEED,WORK_LOOP_SPEED);
+
+/* ======================================================================== */
+/* TRANSITION SYSTEM - OVERLAY WIPE EFFECT */
+/* ======================================================================== */
+
+const transitionGif = document.getElementById('transitionGif');
+const contactsPage = document.getElementById('contactsPage');
+const mainContent = document.getElementById('mainContent');
+const backButton = document.getElementById('backButton');
+let isTransitioning = false;
+
+// GIF Configuration - YOUR MEASURED DURATIONS
+const GIF_CONFIG = {
+  forward: {
+    path: 'transition.gif',
+    duration: 2670,      // 2.67 seconds
+    fps: 30
+  },
+  reverse: {
+    path: 'transition-reverse.gif',
+    duration: 1170,      // 1.17 seconds
+    fps: 30
+  }
+};
+
+// Preload GIFs
+const forwardGif = new Image();
+forwardGif.src = GIF_CONFIG.forward.path;
+const reverseGif = new Image();
+reverseGif.src = GIF_CONFIG.reverse.path;
+
+// Function to smoothly move eye to center
+function resetEyeToCenter() {
+  return new Promise((resolve) => {
+    const transformAttr = eyeMove.getAttribute('transform') || 'translate(0, 0)';
+    const matches = transformAttr.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+    
+    const startX = matches ? parseFloat(matches[1]) : 0;
+    const startY = matches ? parseFloat(matches[2]) : 0;
+    
+    const duration = 800;
+    const startTime = performance.now();
+    
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      const eased = 1 - Math.pow(1 - progress, 3);
+      
+      const currentX = startX * (1 - eased);
+      const currentY = startY * (1 - eased);
+      
+      eyeMove.setAttribute('transform', `translate(${currentX}, ${currentY})`);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        resolve();
+      }
+    }
+    
+    requestAnimationFrame(animate);
+  });
+}
+
+// Play GIF as overlay on top of current page
+function playGifTransition(isReverse = false) {
+  return new Promise((resolve) => {
+    const config = isReverse ? GIF_CONFIG.reverse : GIF_CONFIG.forward;
+    
+    console.log(`Playing ${isReverse ? 'REVERSE' : 'FORWARD'} transition (${config.duration}ms)...`);
+    
+    // Load GIF with cache buster
+    const cacheBuster = '?t=' + Date.now();
+    transitionGif.src = config.path + cacheBuster;
+    
+    transitionGif.onload = () => {
+      console.log('GIF loaded, showing overlay...');
+      transitionGif.style.display = 'block';
+      
+      const startTime = performance.now();
+      
+      function checkProgress() {
+        const elapsed = performance.now() - startTime;
+        
+        if (elapsed >= config.duration) {
+          console.log('Transition GIF finished!');
+          resolve();
+        } else {
+          requestAnimationFrame(checkProgress);
+        }
+      }
+      
+      requestAnimationFrame(checkProgress);
+    };
+    
+    // Fallback in case onload doesn't fire
+    setTimeout(() => {
+      if (transitionGif.style.display !== 'block') {
+        console.warn('GIF onload timeout, forcing display');
+        transitionGif.style.display = 'block';
+        setTimeout(resolve, config.duration);
+      }
+    }, 100);
+  });
+}
+
+// FORWARD TRANSITION: Home → Contacts
+// Flow: Eye centers → GIF plays on top of home page → GIF ends → contacts page appears
+document.getElementById('icon-contacts').addEventListener('click', async () => {
+  if (isTransitioning || !contactsIcon.isClickable) {
+    return;
+  }
+  
+  console.log('=== FORWARD TRANSITION START ===');
+  isTransitioning = true;
+  
+  try {
+    // Step 1: Center eye
+    console.log('Step 1: Centering eye...');
+    await resetEyeToCenter();
+    
+    // Step 2: Play transition GIF ON TOP of home page
+    console.log('Step 2: Playing transition GIF...');
+    await playGifTransition(false);
+    
+    // Step 3: GIF finished - NOW show contacts page
+    console.log('Step 3: Showing contacts page...');
+    transitionGif.style.display = 'none';
+    transitionGif.src = '';
+    mainContent.style.display = 'none';
+    contactsPage.style.display = 'flex';
+    
+    console.log('=== FORWARD TRANSITION COMPLETE ===');
+  } catch (error) {
+    console.error('Transition error:', error);
+    transitionGif.style.display = 'none';
+    contactsPage.style.display = 'flex';
+    mainContent.style.display = 'none';
+  } finally {
+    isTransitioning = false;
+  }
+});
+
+// REVERSE TRANSITION: Contacts → Home
+// Flow: Contacts page hides → Reverse GIF plays → GIF ends → home page appears
+backButton.addEventListener('click', async () => {
+  if (isTransitioning) return;
+  
+  console.log('=== REVERSE TRANSITION START ===');
+  isTransitioning = true;
+  
+  try {
+    // Step 1: Hide contacts page
+    console.log('Step 1: Hiding contacts page...');
+    contactsPage.style.display = 'none';
+    
+    // Step 2: Play REVERSE transition GIF
+    console.log('Step 2: Playing reverse GIF...');
+    await playGifTransition(true);
+    
+    // Step 3: GIF finished - NOW show home page
+    console.log('Step 3: Showing home page...');
+    transitionGif.style.display = 'none';
+    transitionGif.src = '';
+    mainContent.style.display = 'block';
+    
+    console.log('=== REVERSE TRANSITION COMPLETE ===');
+  } catch (error) {
+    console.error('Transition error:', error);
+    transitionGif.style.display = 'none';
+    mainContent.style.display = 'block';
+    contactsPage.style.display = 'none';
+  } finally {
+    isTransitioning = false;
+  }
+});
 
 /* ======================================================================== */
 /* EYE SYSTEM WITH GIF FREEZE */
