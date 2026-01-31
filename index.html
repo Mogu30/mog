@@ -16,12 +16,43 @@ html, body {
   justify-content: center;
 }
 
+/* Loading screen */
+#loadingScreen {
+  position: fixed;
+  inset: 0;
+  background: black;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+#loadingScreen h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+#loadingProgress {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
 #container {
   position: relative;
   width: 100vw;
   height: 100vh;
   max-width: calc(100vh * 16 / 9);
   max-height: calc(100vw * 9 / 16);
+  background: black;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#container.loaded {
+  opacity: 1;
 }
 
 #bgGif,
@@ -69,8 +100,8 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  z-index: 999;  /* Above everything */
+  object-fit: contain;
+  z-index: 999;
   display: none;
   pointer-events: none;
 }
@@ -156,6 +187,12 @@ svg {
 
 <body>
 
+<!-- Loading Screen -->
+<div id="loadingScreen">
+  <h2>Loading...</h2>
+  <p id="loadingProgress">Preparing assets...</p>
+</div>
+
 <div id="container">
   <img id="bgGif" src="mog.gif" alt="">
   <canvas id="bgFreeze"></canvas>
@@ -202,6 +239,56 @@ svg {
 </div>
 
 <script>
+/* ======================================================================== */
+/* PRELOADER */
+/* ======================================================================== */
+
+const loadingScreen = document.getElementById('loadingScreen');
+const loadingProgress = document.getElementById('loadingProgress');
+const container = document.getElementById('container');
+
+// Critical assets that MUST load before showing the page
+const criticalAssets = [
+  'mog.gif',
+  'White.png',
+  'Iris.png',
+  'mask.png',
+  'reflections.png',
+  'transition.gif',
+  'transition-reverse.gif'
+];
+
+let loadedCount = 0;
+const totalAssets = criticalAssets.length;
+
+function updateProgress() {
+  loadedCount++;
+  const percent = Math.round((loadedCount / totalAssets) * 100);
+  loadingProgress.textContent = `Loading assets... ${percent}%`;
+  
+  if (loadedCount === totalAssets) {
+    console.log('All assets loaded!');
+    setTimeout(() => {
+      loadingScreen.style.display = 'none';
+      container.classList.add('loaded');
+    }, 500);
+  }
+}
+
+// Preload all critical assets
+criticalAssets.forEach(src => {
+  const img = new Image();
+  img.onload = () => {
+    console.log(`Loaded: ${src}`);
+    updateProgress();
+  };
+  img.onerror = () => {
+    console.error(`Failed to load: ${src}`);
+    updateProgress(); // Continue anyway
+  };
+  img.src = src;
+});
+
 /* ======================================================================== */
 /* ICON SYSTEM */
 /* ======================================================================== */
@@ -344,7 +431,7 @@ const contactsIcon = new SequenceIcon(document.getElementById('icon-contacts'),3
 const workIcon = new SequenceIcon(document.getElementById('icon-work'),29,'work',null,0.029,null,WORK_REVERSE_SPEED,WORK_LOOP_SPEED);
 
 /* ======================================================================== */
-/* TRANSITION SYSTEM - OVERLAY WIPE EFFECT */
+/* TRANSITION SYSTEM - CORRECT UNDERSTANDING */
 /* ======================================================================== */
 
 const transitionGif = document.getElementById('transitionGif');
@@ -353,27 +440,25 @@ const mainContent = document.getElementById('mainContent');
 const backButton = document.getElementById('backButton');
 let isTransitioning = false;
 
-// GIF Configuration - YOUR MEASURED DURATIONS
+// GIF Configuration
 const GIF_CONFIG = {
   forward: {
     path: 'transition.gif',
-    duration: 2670,      // 2.67 seconds
-    fps: 30
+    duration: 2670      // Eye expands, pupil goes black and fills screen
   },
   reverse: {
     path: 'transition-reverse.gif',
-    duration: 1170,      // 1.17 seconds
-    fps: 30
+    duration: 1170      // Black pupil shrinks, eye returns to center
   }
 };
 
 // Preload GIFs
-const forwardGif = new Image();
-forwardGif.src = GIF_CONFIG.forward.path;
-const reverseGif = new Image();
-reverseGif.src = GIF_CONFIG.reverse.path;
+const forwardGifImg = new Image();
+forwardGifImg.src = GIF_CONFIG.forward.path;
+const reverseGifImg = new Image();
+reverseGifImg.src = GIF_CONFIG.reverse.path;
 
-// Function to smoothly move eye to center
+// Smooth eye centering
 function resetEyeToCenter() {
   return new Promise((resolve) => {
     const transformAttr = eyeMove.getAttribute('transform') || 'translate(0, 0)';
@@ -388,7 +473,6 @@ function resetEyeToCenter() {
     function animate(currentTime) {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
       const eased = 1 - Math.pow(1 - progress, 3);
       
       const currentX = startX * (1 - eased);
@@ -407,19 +491,17 @@ function resetEyeToCenter() {
   });
 }
 
-// Play GIF as overlay on top of current page
-function playGifTransition(isReverse = false) {
+// Play GIF transition with cache buster for repeatability
+function playGifTransition(gifPath, duration) {
   return new Promise((resolve) => {
-    const config = isReverse ? GIF_CONFIG.reverse : GIF_CONFIG.forward;
+    console.log(`Playing transition: ${gifPath} (${duration}ms)`);
     
-    console.log(`Playing ${isReverse ? 'REVERSE' : 'FORWARD'} transition (${config.duration}ms)...`);
+    // Clear and reload with cache buster
+    transitionGif.src = '';
     
-    // Load GIF with cache buster
-    const cacheBuster = '?t=' + Date.now();
-    transitionGif.src = config.path + cacheBuster;
-    
-    transitionGif.onload = () => {
-      console.log('GIF loaded, showing overlay...');
+    requestAnimationFrame(() => {
+      const cacheBuster = '?t=' + Date.now();
+      transitionGif.src = gifPath + cacheBuster;
       transitionGif.style.display = 'block';
       
       const startTime = performance.now();
@@ -427,8 +509,8 @@ function playGifTransition(isReverse = false) {
       function checkProgress() {
         const elapsed = performance.now() - startTime;
         
-        if (elapsed >= config.duration) {
-          console.log('Transition GIF finished!');
+        if (elapsed >= duration) {
+          console.log('Transition GIF complete!');
           resolve();
         } else {
           requestAnimationFrame(checkProgress);
@@ -436,58 +518,69 @@ function playGifTransition(isReverse = false) {
       }
       
       requestAnimationFrame(checkProgress);
-    };
-    
-    // Fallback in case onload doesn't fire
-    setTimeout(() => {
-      if (transitionGif.style.display !== 'block') {
-        console.warn('GIF onload timeout, forcing display');
-        transitionGif.style.display = 'block';
-        setTimeout(resolve, config.duration);
-      }
-    }, 100);
+    });
   });
 }
 
-// FORWARD TRANSITION: Home → Contacts
-// Flow: Eye centers → GIF plays on top of home page → GIF ends → contacts page appears
+/* ======================================================================== */
+/* FORWARD TRANSITION: Home → Contacts */
+/* Flow:
+   1. Center eye smoothly
+   2. Play forward GIF (eye expands, pupil goes black)
+   3. When GIF ends (screen is BLACK from pupil), show contacts page
+   4. Hide GIF
+*/
+/* ======================================================================== */
+
 document.getElementById('icon-contacts').addEventListener('click', async () => {
-  if (isTransitioning || !contactsIcon.isClickable) {
-    return;
-  }
+  if (isTransitioning || !contactsIcon.isClickable) return;
   
   console.log('=== FORWARD TRANSITION START ===');
   isTransitioning = true;
   
   try {
-    // Step 1: Center eye
+    // Step 1: Center the eye
     console.log('Step 1: Centering eye...');
     await resetEyeToCenter();
     
-    // Step 2: Play transition GIF ON TOP of home page
-    console.log('Step 2: Playing transition GIF...');
-    await playGifTransition(false);
+    // Step 2: Play forward GIF (eye expands, pupil fills screen with black)
+    console.log('Step 2: Playing forward GIF (eye expanding)...');
+    await playGifTransition(GIF_CONFIG.forward.path, GIF_CONFIG.forward.duration);
     
-    // Step 3: GIF finished - NOW show contacts page
-    console.log('Step 3: Showing contacts page...');
-    transitionGif.style.display = 'none';
-    transitionGif.src = '';
+    // Step 3: Wait for paint cycles to ensure GIF last frame is composited
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    
+    // Step 4: Switch to contacts (both black - no flash)
+    console.log('Step 3: Switching to contacts (both black - no flash)...');
     mainContent.style.display = 'none';
     contactsPage.style.display = 'flex';
+    
+    // Step 5: Hide the GIF (don't clear src - let it cache)
+    transitionGif.style.display = 'none';
     
     console.log('=== FORWARD TRANSITION COMPLETE ===');
   } catch (error) {
-    console.error('Transition error:', error);
+    console.error('Forward transition error:', error);
     transitionGif.style.display = 'none';
-    contactsPage.style.display = 'flex';
     mainContent.style.display = 'none';
+    contactsPage.style.display = 'flex';
   } finally {
     isTransitioning = false;
   }
 });
 
-// REVERSE TRANSITION: Contacts → Home
-// Flow: Contacts page hides → Reverse GIF plays → GIF ends → home page appears
+/* ======================================================================== */
+/* REVERSE TRANSITION: Contacts → Home */
+/* Flow:
+   1. Show home page BEHIND contacts (home becomes visible)
+   2. Hide contacts page (now only home page visible)
+   3. Play reverse GIF ON TOP of home (starts with black pupil, shrinks)
+   4. Home page visible through transparent parts as pupil shrinks
+   5. When GIF ends, just hide it - home is already there!
+*/
+/* ======================================================================== */
+
 backButton.addEventListener('click', async () => {
   if (isTransitioning) return;
   
@@ -495,26 +588,55 @@ backButton.addEventListener('click', async () => {
   isTransitioning = true;
   
   try {
-    // Step 1: Hide contacts page
-    console.log('Step 1: Hiding contacts page...');
+    // Step 1: Show home page behind contacts AND ensure it's fully visible
+    console.log('Step 1: Preparing home page with everything visible...');
+    mainContent.style.display = 'block';
+    mainContent.style.opacity = '1';
+    container.style.opacity = '1';
+    
+    // Force eye to be fully visible immediately (no fade-in transition)
+    eyeOffset.style.transition = 'none';
+    eyeOffset.style.opacity = '1';
+    void eyeOffset.offsetHeight;
+    eyeOffset.style.transition = 'opacity 0.8s ease';
+    
+    // Small delay to ensure home page is fully rendered
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Step 2: Start reverse GIF WHILE contacts is still visible
+    console.log('Step 2: Starting reverse GIF (covers contacts with black pupil)...');
+    const cacheBuster = '?t=' + Date.now();
+    transitionGif.src = GIF_CONFIG.reverse.path + cacheBuster;
+    transitionGif.style.display = 'block';
+    
+    // Wait for GIF to start displaying
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Step 3: NOW hide contacts - GIF is already covering it
+    console.log('Step 3: Hiding contacts (GIF already covering with black pupil)...');
     contactsPage.style.display = 'none';
     
-    // Step 2: Play REVERSE transition GIF
-    console.log('Step 2: Playing reverse GIF...');
-    await playGifTransition(true);
+    // Step 4: Wait for reverse GIF to finish playing
+    console.log('Step 4: Waiting for reverse GIF to complete (pupil shrinking)...');
+    await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.reverse.duration));
     
-    // Step 3: GIF finished - NOW show home page
-    console.log('Step 3: Showing home page...');
+    // Step 5: Wait TWO paint cycles to ensure home is composited before removing GIF
+    console.log('Step 5: Waiting for home page to composite...');
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    
+    // Step 6: NOW hide GIF - home is guaranteed to be painted
+    console.log('Step 6: Hiding GIF - home page already painted!');
     transitionGif.style.display = 'none';
-    transitionGif.src = '';
-    mainContent.style.display = 'block';
+    // DON'T clear src - let it stay cached
     
     console.log('=== REVERSE TRANSITION COMPLETE ===');
   } catch (error) {
-    console.error('Transition error:', error);
+    console.error('Reverse transition error:', error);
     transitionGif.style.display = 'none';
-    mainContent.style.display = 'block';
     contactsPage.style.display = 'none';
+    mainContent.style.display = 'block';
+    eyeOffset.style.opacity = '1';
   } finally {
     isTransitioning = false;
   }
@@ -540,20 +662,51 @@ const ctx = bgFreeze.getContext("2d");
 
 let eyeActive = false;
 
+// Wait for background GIF to load, then freeze it
+bgGif.addEventListener('load', () => {
+  console.log('Background GIF loaded, waiting to freeze frame...');
+  
+  setTimeout(() => {
+    if (eyeActive) return;
+
+    // Ensure GIF is fully loaded
+    if (!bgGif.complete || bgGif.naturalWidth === 0 || bgGif.naturalHeight === 0) {
+      console.error('GIF not ready, retrying...');
+      setTimeout(() => bgGif.dispatchEvent(new Event('load')), 100);
+      return;
+    }
+
+    // Use naturalWidth/Height for accurate dimensions
+    bgFreeze.width = bgGif.naturalWidth;
+    bgFreeze.height = bgGif.naturalHeight;
+    
+    console.log(`Canvas size: ${bgFreeze.width}x${bgFreeze.height}`);
+    
+    if (bgFreeze.width > 0 && bgFreeze.height > 0) {
+      try {
+        ctx.drawImage(bgGif, 0, 0, bgFreeze.width, bgFreeze.height);
+        console.log('Successfully froze GIF frame');
+        
+        bgGif.style.display = "none";
+        bgFreeze.style.display = "block";
+
+        eyeOffset.style.opacity = "1";
+        eyeActive = true;
+        startBlinking();
+      } catch (error) {
+        console.error('Failed to draw GIF to canvas:', error);
+      }
+    }
+  }, 4078);
+});
+
+// Fallback
 setTimeout(() => {
-  if (eyeActive) return;
-
-  bgFreeze.width = bgGif.clientWidth;
-  bgFreeze.height = bgGif.clientHeight;
-  ctx.drawImage(bgGif, 0, 0, bgFreeze.width, bgFreeze.height);
-
-  bgGif.style.display = "none";
-  bgFreeze.style.display = "block";
-
-  eyeOffset.style.opacity = "1";
-  eyeActive = true;
-  startBlinking();
-}, 4078);
+  if (!eyeActive && bgGif.complete) {
+    console.log('Manually triggering GIF load event');
+    bgGif.dispatchEvent(new Event('load'));
+  }
+}, 200);
 
 function moveEye(clientX, clientY) {
   if (!eyeActive) return;
