@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MOG Eye (PNG Mask + Blink)</title>
+<title>MOG </title>
 
 <style>
 html, body {
@@ -359,7 +359,7 @@ class SequenceIcon {
   
   setupListeners() {
     this.element.addEventListener('mouseenter', () => {
-      this.isHovering = false;
+      this.isHovering = true;
       this.isCharged = false;
       this.isClickable = true;
       this.element.style.filter =
@@ -422,7 +422,7 @@ const contactsIcon = new SequenceIcon(document.getElementById('icon-contacts'),3
 const workIcon = new SequenceIcon(document.getElementById('icon-work'),29,'work',null,0.029,null,WORK_REVERSE_SPEED,WORK_LOOP_SPEED);
 
 /* ======================================================================== */
-/* TRANSITION SYSTEM - SIMPLIFIED */
+/* TRANSITION SYSTEM - WITH AGGRESSIVE GIF CACHING */
 /* ======================================================================== */
 
 const transitionGif = document.getElementById('transitionGif');
@@ -438,15 +438,27 @@ const GIF_CONFIG = {
   },
   reverse: {
     path: 'transition-reverse.gif',
-    duration: 0750
+    duration: 750
   }
 };
 
-// Preload GIFs
-const forwardGifImg = new Image();
-forwardGifImg.src = GIF_CONFIG.forward.path;
-const reverseGifImg = new Image();
-reverseGifImg.src = GIF_CONFIG.reverse.path;
+/* ===== AGGRESSIVE GIF PRELOAD - PREVENTS LAG ON GITHUB PAGES ===== */
+const forwardGifPreload = document.createElement('img');
+forwardGifPreload.src = GIF_CONFIG.forward.path;
+forwardGifPreload.style.display = 'none';
+forwardGifPreload.style.position = 'absolute';
+forwardGifPreload.style.pointerEvents = 'none';
+document.body.appendChild(forwardGifPreload);
+
+const reverseGifPreload = document.createElement('img');
+reverseGifPreload.src = GIF_CONFIG.reverse.path;
+reverseGifPreload.style.display = 'none';
+reverseGifPreload.style.position = 'absolute';
+reverseGifPreload.style.pointerEvents = 'none';
+document.body.appendChild(reverseGifPreload);
+
+console.log('🌙 Luna says: Transition GIFs force-cached in DOM!');
+/* ================================================================= */
 
 function resetEyeToCenter() {
   return new Promise((resolve) => {
@@ -487,18 +499,14 @@ document.getElementById('icon-contacts').addEventListener('click', async () => {
   isTransitioning = true;
   
   try {
-    // Center eye
     await resetEyeToCenter();
     
-    // Play forward GIF
     const cacheBuster = '?t=' + Date.now();
     transitionGif.src = GIF_CONFIG.forward.path + cacheBuster;
     transitionGif.style.display = 'block';
     
-    // Wait for GIF to finish
     await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.forward.duration));
     
-    // Switch pages
     mainContent.style.display = 'none';
     contactsPage.style.display = 'flex';
     transitionGif.style.display = 'none';
@@ -513,32 +521,27 @@ document.getElementById('icon-contacts').addEventListener('click', async () => {
   }
 });
 
-/* REVERSE TRANSITION: Contacts → Home - SIMPLIFIED */
+/* REVERSE TRANSITION: Contacts → Home */
 backButton.addEventListener('click', async () => {
   if (isTransitioning) return;
   
   isTransitioning = true;
   
   try {
-    // Load home page first (eye visible immediately)
     mainContent.style.display = 'block';
     eyeOffset.style.transition = 'none';
     eyeOffset.style.opacity = '1';
     void eyeOffset.offsetHeight;
     eyeOffset.style.transition = 'opacity 0.8s ease';
     
-    // Start reverse GIF
     const cacheBuster = '?t=' + Date.now();
     transitionGif.src = GIF_CONFIG.reverse.path + cacheBuster;
     transitionGif.style.display = 'block';
     
-    // Tiny delay for GIF to start
     await new Promise(resolve => setTimeout(resolve, 16));
     
-    // Hide contacts
     contactsPage.style.display = 'none';
     
-    // Wait for GIF, then hide it
     await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.reverse.duration));
     transitionGif.style.display = 'none';
     
