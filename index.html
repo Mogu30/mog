@@ -254,7 +254,7 @@ const criticalAssets = [
   'mask.png',
   'reflections.png',
   'transition.gif',
-  'transition-reverse.gif'
+  'reverse.gif'
 ];
 
 let loadedCount = 0;
@@ -341,7 +341,7 @@ class SequenceIcon {
     this.isHolding = false;
     this.isCharged = false;
     this.chargeTimer = null;
-    this.isClickable = true;
+    this.isClickable = false;
     this.preloadFrames();
     this.setupListeners();
     this.animate();
@@ -437,7 +437,7 @@ const GIF_CONFIG = {
     duration: 2670
   },
   reverse: {
-    path: 'transition-reverse.gif',
+    path: 'reverse.gif',
     duration: 750
   }
 };
@@ -501,8 +501,8 @@ document.getElementById('icon-contacts').addEventListener('click', async () => {
   try {
     await resetEyeToCenter();
     
-    const cacheBuster = '?t=' + Date.now();
-    transitionGif.src = GIF_CONFIG.forward.path + cacheBuster;
+    // Use preloaded GIF directly - no cache buster needed!
+    transitionGif.src = GIF_CONFIG.forward.path;
     transitionGif.style.display = 'block';
     
     await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.forward.duration));
@@ -534,8 +534,8 @@ backButton.addEventListener('click', async () => {
     void eyeOffset.offsetHeight;
     eyeOffset.style.transition = 'opacity 0.8s ease';
     
-    const cacheBuster = '?t=' + Date.now();
-    transitionGif.src = GIF_CONFIG.reverse.path + cacheBuster;
+    // Use preloaded GIF directly - no cache buster needed!
+    transitionGif.src = GIF_CONFIG.reverse.path;
     transitionGif.style.display = 'block';
     
     await new Promise(resolve => setTimeout(resolve, 16));
