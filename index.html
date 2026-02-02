@@ -55,7 +55,7 @@ html, body {
   opacity: 1;
 }
 
-#bgGif,
+#bgVideo,
 #bgFreeze {
   position: absolute;
   inset: 0;
@@ -94,8 +94,8 @@ html, body {
   font-family: Arial, sans-serif;
 }
 
-/* Transition GIF - plays ON TOP of everything as an overlay */
-#transitionGif {
+/* Transition Video - plays ON TOP of everything as an overlay */
+#transitionVideo {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -123,7 +123,13 @@ svg {
   pointer-events: auto;
   cursor: pointer;
   filter: drop-shadow(0 0 0px rgba(0,0,0,0));
+  opacity: 1;
   transition: filter 0.1s ease;
+}
+
+.icon.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .icon img {
@@ -194,7 +200,9 @@ svg {
 </div>
 
 <div id="container">
-  <img id="bgGif" src="mog.gif" alt="">
+  <video id="bgVideo" autoplay loop muted playsinline>
+    <source src="mog.mov">
+  </video>
   <canvas id="bgFreeze"></canvas>
   
   <!-- Main home page with eye and icons -->
@@ -234,8 +242,10 @@ svg {
     <button id="backButton">← Back to Home</button>
   </div>
   
-  <!-- Transition GIF overlay (plays on top of current page) -->
-  <img id="transitionGif" src="" alt="">
+  <!-- Transition Video overlay (plays on top of current page) -->
+  <video id="transitionVideo" muted playsinline>
+    <source src="" type="video/webm">
+  </video>
 </div>
 
 <script>
@@ -248,13 +258,13 @@ const loadingProgress = document.getElementById('loadingProgress');
 const container = document.getElementById('container');
 
 const criticalAssets = [
-  'mog.gif',
+  'mog.mov',
   'White.png',
   'Iris.png',
   'mask.png',
   'reflections.png',
-  'transition.gif',
-  'reverse.gif'
+  'transition.webm',
+  'reverse.webm'
 ];
 
 let loadedCount = 0;
@@ -274,10 +284,21 @@ function updateProgress() {
 }
 
 criticalAssets.forEach(src => {
-  const img = new Image();
-  img.onload = () => updateProgress();
-  img.onerror = () => updateProgress();
-  img.src = src;
+  const ext = src.split('.').pop();
+  
+  if (ext === 'mp4' || ext === 'mov' || ext === 'webm') {
+    // Preload video
+    const video = document.createElement('video');
+    video.onloadeddata = () => updateProgress();
+    video.onerror = () => updateProgress();
+    video.src = src;
+  } else {
+    // Preload image
+    const img = new Image();
+    img.onload = () => updateProgress();
+    img.onerror = () => updateProgress();
+    img.src = src;
+  }
 });
 
 /* ======================================================================== */
@@ -341,7 +362,7 @@ class SequenceIcon {
     this.isHolding = false;
     this.isCharged = false;
     this.chargeTimer = null;
-    this.isClickable = false;
+    this.isClickable = true;
     this.preloadFrames();
     this.setupListeners();
     this.animate();
@@ -422,43 +443,23 @@ const contactsIcon = new SequenceIcon(document.getElementById('icon-contacts'),3
 const workIcon = new SequenceIcon(document.getElementById('icon-work'),29,'work',null,0.029,null,WORK_REVERSE_SPEED,WORK_LOOP_SPEED);
 
 /* ======================================================================== */
-/* TRANSITION SYSTEM - WITH AGGRESSIVE GIF CACHING */
+/* TRANSITION SYSTEM - WEBM WITH TRANSPARENCY */
 /* ======================================================================== */
 
-const transitionGif = document.getElementById('transitionGif');
+const transitionVideo = document.getElementById('transitionVideo');
 const contactsPage = document.getElementById('contactsPage');
 const mainContent = document.getElementById('mainContent');
 const backButton = document.getElementById('backButton');
 let isTransitioning = false;
 
-const GIF_CONFIG = {
+const VIDEO_CONFIG = {
   forward: {
-    path: 'transition.gif',
-    duration: 2670
+    path: 'transition.webm'
   },
   reverse: {
-    path: 'reverse.gif',
-    duration: 750
+    path: 'reverse.webm'
   }
 };
-
-/* ===== AGGRESSIVE GIF PRELOAD - PREVENTS LAG ON GITHUB PAGES ===== */
-const forwardGifPreload = document.createElement('img');
-forwardGifPreload.src = GIF_CONFIG.forward.path;
-forwardGifPreload.style.display = 'none';
-forwardGifPreload.style.position = 'absolute';
-forwardGifPreload.style.pointerEvents = 'none';
-document.body.appendChild(forwardGifPreload);
-
-const reverseGifPreload = document.createElement('img');
-reverseGifPreload.src = GIF_CONFIG.reverse.path;
-reverseGifPreload.style.display = 'none';
-reverseGifPreload.style.position = 'absolute';
-reverseGifPreload.style.pointerEvents = 'none';
-document.body.appendChild(reverseGifPreload);
-
-console.log('🌙 Luna says: Transition GIFs force-cached in DOM!');
-/* ================================================================= */
 
 function resetEyeToCenter() {
   return new Promise((resolve) => {
@@ -501,19 +502,38 @@ document.getElementById('icon-contacts').addEventListener('click', async () => {
   try {
     await resetEyeToCenter();
     
-    // Use preloaded GIF directly - no cache buster needed!
-    transitionGif.src = GIF_CONFIG.forward.path;
-    transitionGif.style.display = 'block';
+    const video = document.getElementById('transitionVideo');
+    const source = video.querySelector('source');
     
-    await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.forward.duration));
+    source.src = VIDEO_CONFIG.forward.path;
+    video.load();
+    video.style.display = 'block';
+    video.currentTime = 0;
+    
+    await video.play();
+    
+    // Fade out icons at exactly 2.168 seconds
+    setTimeout(() => {
+      document.querySelectorAll('.icon').forEach(icon => {
+        icon.classList.add('hidden');
+      });
+    }, 2168);
+    
+    await new Promise(resolve => {
+      video.onended = resolve;
+    });
     
     mainContent.style.display = 'none';
     contactsPage.style.display = 'flex';
-    transitionGif.style.display = 'none';
+    video.style.display = 'none';
+    
+    // Keep background freeze visible
+    bgFreeze.style.display = 'block';
     
   } catch (error) {
     console.error('Forward transition error:', error);
-    transitionGif.style.display = 'none';
+    const video = document.getElementById('transitionVideo');
+    video.style.display = 'none';
     mainContent.style.display = 'none';
     contactsPage.style.display = 'flex';
   } finally {
@@ -528,36 +548,61 @@ backButton.addEventListener('click', async () => {
   isTransitioning = true;
   
   try {
+    // Hide contacts page first
+    contactsPage.style.display = 'none';
+    
+    // Make sure background is visible
+    bgFreeze.style.display = 'block';
+    
+    // Show main content in background with icons visible
     mainContent.style.display = 'block';
+    
+    // Make icons visible immediately (no fade)
+    document.querySelectorAll('.icon').forEach(icon => {
+      icon.classList.remove('hidden');
+    });
+    
     eyeOffset.style.transition = 'none';
     eyeOffset.style.opacity = '1';
     void eyeOffset.offsetHeight;
     eyeOffset.style.transition = 'opacity 0.8s ease';
     
-    // Use preloaded GIF directly - no cache buster needed!
-    transitionGif.src = GIF_CONFIG.reverse.path;
-    transitionGif.style.display = 'block';
+    // Play reverse animation on top
+    const video = document.getElementById('transitionVideo');
+    const source = video.querySelector('source');
     
-    await new Promise(resolve => setTimeout(resolve, 16));
+    source.src = VIDEO_CONFIG.reverse.path;
+    video.load();
+    video.style.display = 'block';
+    video.currentTime = 0;
     
-    contactsPage.style.display = 'none';
+    await video.play();
     
-    await new Promise(resolve => setTimeout(resolve, GIF_CONFIG.reverse.duration));
-    transitionGif.style.display = 'none';
+    await new Promise(resolve => {
+      video.onended = resolve;
+    });
+    
+    video.style.display = 'none';
     
   } catch (error) {
     console.error('Reverse transition error:', error);
-    transitionGif.style.display = 'none';
+    const video = document.getElementById('transitionVideo');
+    video.style.display = 'none';
     contactsPage.style.display = 'none';
     mainContent.style.display = 'block';
     eyeOffset.style.opacity = '1';
+    
+    // Make sure icons are visible on error
+    document.querySelectorAll('.icon').forEach(icon => {
+      icon.classList.remove('hidden');
+    });
   } finally {
     isTransitioning = false;
   }
 });
 
 /* ======================================================================== */
-/* EYE SYSTEM WITH GIF FREEZE */
+/* EYE SYSTEM WITH VIDEO FREEZE */
 /* ======================================================================== */
 
 const BLINK_SPEED = 240;
@@ -570,46 +615,51 @@ const eyeMove   = document.getElementById("eyeMove");
 const eyeOffset = document.getElementById("eyeOffset");
 const blinkLid  = document.getElementById("blinkLid");
 
-const bgGif = document.getElementById("bgGif");
+const bgVideo = document.getElementById("bgVideo");
 const bgFreeze = document.getElementById("bgFreeze");
 const ctx = bgFreeze.getContext("2d");
 
 let eyeActive = false;
 
-bgGif.addEventListener('load', () => {
+// Wait for video to be ready and freeze it at the right moment
+bgVideo.addEventListener('loadeddata', () => {
+  console.log('🎥 Background video loaded!');
+  // Give the video time to start playing
   setTimeout(() => {
     if (eyeActive) return;
 
-    if (!bgGif.complete || bgGif.naturalWidth === 0 || bgGif.naturalHeight === 0) {
-      setTimeout(() => bgGif.dispatchEvent(new Event('load')), 100);
-      return;
-    }
-
-    bgFreeze.width = bgGif.naturalWidth;
-    bgFreeze.height = bgGif.naturalHeight;
+    bgFreeze.width = bgVideo.videoWidth;
+    bgFreeze.height = bgVideo.videoHeight;
+    
+    console.log('🖼️ Freezing at:', bgFreeze.width, 'x', bgFreeze.height);
     
     if (bgFreeze.width > 0 && bgFreeze.height > 0) {
       try {
-        ctx.drawImage(bgGif, 0, 0, bgFreeze.width, bgFreeze.height);
+        ctx.drawImage(bgVideo, 0, 0, bgFreeze.width, bgFreeze.height);
         
-        bgGif.style.display = "none";
+        bgVideo.style.display = "none";
         bgFreeze.style.display = "block";
 
         eyeOffset.style.opacity = "1";
         eyeActive = true;
         startBlinking();
+        console.log('✅ Eye activated!');
       } catch (error) {
-        console.error('Failed to draw GIF to canvas:', error);
+        console.error('Failed to draw video to canvas:', error);
       }
     }
   }, 4078);
 });
 
+// Fallback if video doesn't load
 setTimeout(() => {
-  if (!eyeActive && bgGif.complete) {
-    bgGif.dispatchEvent(new Event('load'));
+  if (!eyeActive) {
+    console.warn('⚠️ Activating eye without background video');
+    eyeOffset.style.opacity = "1";
+    eyeActive = true;
+    startBlinking();
   }
-}, 200);
+}, 6000);
 
 function moveEye(clientX, clientY) {
   if (!eyeActive) return;
