@@ -112,6 +112,8 @@ svg {
   width: 100%;
   height: 100%;
   z-index: 1;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .icon {
@@ -125,6 +127,9 @@ svg {
   filter: drop-shadow(0 0 0px rgba(0,0,0,0));
   opacity: 1;
   transition: filter 0.1s ease;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .icon.hidden {
@@ -152,10 +157,10 @@ svg {
 }
 
 @keyframes blink {
-  0%   { transform: scaleY(0); }
-  45%  { transform: scaleY(1); }
-  55%  { transform: scaleY(1); }
-  100% { transform: scaleY(0); }
+  0%   { transform: scaleY(0) translateY(-50%); }
+  45%  { transform: scaleY(1) translateY(0%); }
+  55%  { transform: scaleY(1) translateY(0%); }
+  100% { transform: scaleY(0) translateY(-50%); }
 }
 
 #contactsPage h1 {
@@ -200,7 +205,7 @@ svg {
 </div>
 
 <div id="container">
-  <video id="bgVideo" autoplay loop muted playsinline>
+  <video id="bgVideo" autoplay muted playsinline>
     <source src="mog.mov">
   </video>
   <canvas id="bgFreeze"></canvas>
@@ -500,6 +505,10 @@ document.getElementById('icon-contacts').addEventListener('click', async () => {
   isTransitioning = true;
   
   try {
+    // Quick blink before transition
+    blinkOnce();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
     await resetEyeToCenter();
     
     const video = document.getElementById('transitionVideo');
@@ -558,8 +567,11 @@ backButton.addEventListener('click', async () => {
     mainContent.style.display = 'block';
     
     // Make icons visible immediately (no fade)
+    console.log('🔍 Making icons visible...');
     document.querySelectorAll('.icon').forEach(icon => {
+      console.log('Icon before:', icon.id, icon.classList.contains('hidden'));
       icon.classList.remove('hidden');
+      console.log('Icon after:', icon.id, icon.classList.contains('hidden'));
     });
     
     eyeOffset.style.transition = 'none';
@@ -584,6 +596,13 @@ backButton.addEventListener('click', async () => {
     
     video.style.display = 'none';
     
+    // Quick blink after reverse transition
+    setTimeout(() => {
+      blinkOnce();
+    }, 100);
+    
+    console.log('✅ Reverse transition complete');
+    
   } catch (error) {
     console.error('Reverse transition error:', error);
     const video = document.getElementById('transitionVideo');
@@ -605,7 +624,7 @@ backButton.addEventListener('click', async () => {
 /* EYE SYSTEM WITH VIDEO FREEZE */
 /* ======================================================================== */
 
-const BLINK_SPEED = 240;
+const BLINK_SPEED = 150;
 const DOUBLE_BLINK_CHANCE = 0.3;
 const DOUBLE_BLINK_DELAY = 180;
 const BLINK_MIN_DELAY = 2400;
@@ -620,18 +639,25 @@ const bgFreeze = document.getElementById("bgFreeze");
 const ctx = bgFreeze.getContext("2d");
 
 let eyeActive = false;
+let eyeActivationTriggered = false;
 
 // Wait for video to be ready and freeze it at the right moment
 bgVideo.addEventListener('loadeddata', () => {
   console.log('🎥 Background video loaded!');
-  // Give the video time to start playing
-  setTimeout(() => {
-    if (eyeActive) return;
+});
 
+// Use timeupdate to sync with actual video playback
+bgVideo.addEventListener('timeupdate', () => {
+  if (eyeActivationTriggered || eyeActive) return;
+  
+  // Activate eye when video reaches 4.037 seconds (end of video)
+  if (bgVideo.currentTime >= 4.037) {
+    eyeActivationTriggered = true;
+    
     bgFreeze.width = bgVideo.videoWidth;
     bgFreeze.height = bgVideo.videoHeight;
     
-    console.log('🖼️ Freezing at:', bgFreeze.width, 'x', bgFreeze.height);
+    console.log('🖼️ Freezing at:', bgFreeze.width, 'x', bgFreeze.height, 'Time:', bgVideo.currentTime);
     
     if (bgFreeze.width > 0 && bgFreeze.height > 0) {
       try {
@@ -642,13 +668,53 @@ bgVideo.addEventListener('loadeddata', () => {
 
         eyeOffset.style.opacity = "1";
         eyeActive = true;
+        
+        // Quick blink when eye appears for natural fade-in
+        setTimeout(() => {
+          blinkOnce();
+        }, 100);
+        
         startBlinking();
-        console.log('✅ Eye activated!');
+        console.log('✅ Eye activated at', bgVideo.currentTime, 'seconds!');
       } catch (error) {
         console.error('Failed to draw video to canvas:', error);
       }
     }
-  }, 4078);
+  }
+});
+
+// Also trigger on video ended event as backup
+bgVideo.addEventListener('ended', () => {
+  if (eyeActivationTriggered || eyeActive) return;
+  
+  eyeActivationTriggered = true;
+  
+  bgFreeze.width = bgVideo.videoWidth;
+  bgFreeze.height = bgVideo.videoHeight;
+  
+  console.log('🖼️ Video ended, freezing at:', bgFreeze.width, 'x', bgFreeze.height);
+  
+  if (bgFreeze.width > 0 && bgFreeze.height > 0) {
+    try {
+      ctx.drawImage(bgVideo, 0, 0, bgFreeze.width, bgFreeze.height);
+      
+      bgVideo.style.display = "none";
+      bgFreeze.style.display = "block";
+
+      eyeOffset.style.opacity = "1";
+      eyeActive = true;
+      
+      // Quick blink when eye appears for natural fade-in
+      setTimeout(() => {
+        blinkOnce();
+      }, 100);
+      
+      startBlinking();
+      console.log('✅ Eye activated on video end!');
+    } catch (error) {
+      console.error('Failed to draw video to canvas:', error);
+    }
+  }
 });
 
 // Fallback if video doesn't load
@@ -659,7 +725,7 @@ setTimeout(() => {
     eyeActive = true;
     startBlinking();
   }
-}, 6000);
+}, 8000);
 
 function moveEye(clientX, clientY) {
   if (!eyeActive) return;
@@ -668,7 +734,9 @@ function moveEye(clientX, clientY) {
   eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
 }
 
-document.addEventListener("mousemove", (e) => moveEye(e.clientX, e.clientY));
+document.addEventListener("mousemove", (e) => {
+  if (eyeActive) moveEye(e.clientX, e.clientY);
+});
 
 function blinkOnce() {
   blinkLid.style.animation = `blink ${BLINK_SPEED}ms ease-in-out`;
