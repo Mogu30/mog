@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>MOG - Portfolio</title>
 
 <style>
@@ -46,6 +46,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Prevent pull-to-refresh and overscroll on mobile */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ========================================================================
@@ -86,6 +89,9 @@ html, body {
   background: var(--color-bg);
   opacity: 0;
   transition: opacity var(--transition-slow) ease;
+  /* Prevent touch highlighting on mobile */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 
 #container.loaded {
@@ -202,6 +208,10 @@ svg {
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;
+  /* Better touch target on mobile */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .icon.hidden {
@@ -215,6 +225,15 @@ svg {
   display: block;
   object-fit: contain;
   pointer-events: none;
+  /* Prevent image drag on mobile */
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Mobile-specific: Show visual feedback for touch */
+.icon.touching {
+  filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
 }
 
 /* ========================================================================
@@ -243,12 +262,36 @@ svg {
   text-transform: uppercase;
   letter-spacing: 0.2rem;
   transition: all var(--transition-normal) ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #backButton:hover {
   background: var(--color-accent);
   color: var(--color-text);
   transform: scale(1.05);
+}
+
+#backButton:active {
+  transform: scale(0.95);
+}
+
+/* ========================================================================
+   MOBILE RESPONSIVE
+   ======================================================================== */
+@media (max-width: 768px) {
+  #contactsPage h1 {
+    font-size: 2.5rem;
+    letter-spacing: 0.3rem;
+  }
+  
+  #contactsPage p {
+    font-size: 1.2rem;
+  }
+  
+  #backButton {
+    font-size: 1rem;
+    padding: 0.8rem 2rem;
+  }
 }
 </style>
 </head>
@@ -262,7 +305,7 @@ svg {
 </div>
 
 <div id="container">
-  <video id="bgVideo" autoplay muted playsinline>
+  <video id="bgVideo" autoplay muted playsinline webkit-playsinline>
     <source src="mog.mov">
   </video>
   <canvas id="bgFreeze"></canvas>
@@ -315,14 +358,26 @@ svg {
   </div>
   
   <!-- Transition Video overlay -->
-  <video id="transitionVideo" muted playsinline>
+  <video id="transitionVideo" muted playsinline webkit-playsinline>
     <source src="" type="video/webm">
   </video>
 </div>
 
-<!-- In production, this would be: <script src="main.js"></script> -->
 <script>
 'use strict';
+
+/* ========================================================================
+   DEVICE DETECTION
+   ======================================================================== */
+const DeviceDetector = {
+  isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+  isTouchDevice: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+  
+  init() {
+    console.log('📱 Device type:', this.isMobile ? 'Mobile' : 'Desktop');
+    console.log('👆 Touch support:', this.isTouchDevice ? 'Yes' : 'No');
+  }
+};
 
 /* ========================================================================
    CONFIGURATION CONSTANTS - All magic numbers in one place!
@@ -352,12 +407,14 @@ const CONFIG = {
     DOUBLE_BLINK_DELAY: 180,
     BLINK_MIN_DELAY: 2400,
     BLINK_MAX_DELAY: 5000,
-    EYE_FALLBACK_TIMEOUT: 8000
+    EYE_FALLBACK_TIMEOUT: 8000,
+    TOUCH_CHARGE_TIME: 300  // Faster charge on mobile
   },
   
   // Icon animation speeds
   ICON_SPEEDS: {
     CHARGE_TIME: 500,
+    TOUCH_CHARGE_TIME: 300, // Faster for mobile
     ART_FORWARD: 2,
     ART_REVERSE: 0.3,
     EDU_FORWARD: 0.3,
@@ -384,7 +441,7 @@ const CONFIG = {
   
   // Transition
   TRANSITION: {
-    OFFSET: 1, // Vertical offset for transition video
+    OFFSET: 1,
     FORWARD_PATH: 'transition.webm',
     REVERSE_PATH: 'reverse.webm'
   },
@@ -395,32 +452,19 @@ const CONFIG = {
   },
   
   // Debug mode
-  DEBUG: false // Set to true to enable console logs
+  DEBUG: false
 };
 
 /* ========================================================================
    UTILITY FUNCTIONS
    ======================================================================== */
 const Utils = {
-  /**
-   * Safely log to console if debug mode is enabled
-   */
   log: (...args) => {
     if (CONFIG.DEBUG) console.log(...args);
   },
   
-  /**
-   * Delay execution
-   * @param {number} ms - Milliseconds to wait
-   * @returns {Promise}
-   */
   wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
   
-  /**
-   * Get element by ID with error checking
-   * @param {string} id - Element ID
-   * @returns {HTMLElement}
-   */
   getElement: (id) => {
     const el = document.getElementById(id);
     if (!el) console.error(`Element not found: ${id}`);
@@ -435,9 +479,6 @@ const Preloader = {
   loadedCount: 0,
   totalAssets: CONFIG.ASSETS.CRITICAL.length,
   
-  /**
-   * Initialize and run the preloader
-   */
   init() {
     const loadingScreen = Utils.getElement('loadingScreen');
     const loadingProgress = Utils.getElement('loadingProgress');
@@ -453,9 +494,6 @@ const Preloader = {
       }
     });
     
-    /**
-     * Update loading progress
-     */
     const updateProgress = () => {
       this.loadedCount++;
       const percent = Math.round((this.loadedCount / this.totalAssets) * 100);
@@ -472,10 +510,6 @@ const Preloader = {
     this.updateProgress = updateProgress;
   },
   
-  /**
-   * Preload a video file
-   * @param {string} src - Video source path
-   */
   preloadVideo(src) {
     const video = document.createElement('video');
     video.onloadeddata = () => this.updateProgress();
@@ -483,10 +517,6 @@ const Preloader = {
     video.src = src;
   },
   
-  /**
-   * Preload an image file
-   * @param {string} src - Image source path
-   */
   preloadImage(src) {
     const img = new Image();
     img.onload = () => this.updateProgress();
@@ -499,9 +529,6 @@ const Preloader = {
    ICON POSITIONING MODULE
    ======================================================================== */
 const IconPositioner = {
-  /**
-   * Position all icons based on viewport size
-   */
   positionIcons() {
     const container = Utils.getElement('container');
     const containerWidth = container.offsetWidth;
@@ -522,9 +549,6 @@ const IconPositioner = {
     }
   },
   
-  /**
-   * Initialize icon positioning with resize listener
-   */
   init() {
     this.positionIcons();
     window.addEventListener('resize', () => this.positionIcons());
@@ -532,26 +556,9 @@ const IconPositioner = {
 };
 
 /* ========================================================================
-   SEQUENCE ICON CLASS - Handles frame-by-frame icon animations
+   SEQUENCE ICON CLASS - MOBILE & DESKTOP SUPPORT
    ======================================================================== */
-/* ========================================================================
-   SEQUENCE ICON CLASS - Handles frame-by-frame icon animations
-   ======================================================================== */
-/**
- * Animates an icon using frame sequences
- * @class
- */
 class SequenceIcon {
-  /**
-   * @param {HTMLElement} element - The icon container element
-   * @param {number} frameCount - Total number of frames in the sequence
-   * @param {string} folder - Folder name containing frame images
-   * @param {number|null} holdFrame - Frame to hold on when charged (null for looping)
-   * @param {number} speed - Base animation speed
-   * @param {number} forwardSpeed - Speed multiplier for forward animation
-   * @param {number} reverseSpeed - Speed multiplier for reverse animation
-   * @param {number} loopSpeed - Speed multiplier for looping animation
-   */
   constructor(element, frameCount, folder, holdFrame = null, speed = 0.04, forwardSpeed = 0.5, reverseSpeed = 0.3, loopSpeed = 0.2) {
     this.element = element;
     this.img = element.querySelector('img');
@@ -569,15 +576,13 @@ class SequenceIcon {
     this.isCharged = false;
     this.chargeTimer = null;
     this.isClickable = true;
+    this.isTouching = false;
     
     this.preloadFrames();
     this.setupListeners();
     this.animate();
   }
   
-  /**
-   * Preload all frame images
-   */
   preloadFrames() {
     this.frames = [];
     for (let i = 0; i < this.frameCount; i++) {
@@ -588,29 +593,25 @@ class SequenceIcon {
     }
   }
   
-  /**
-   * Reset icon to initial state
-   */
   reset() {
     this.isHovering = false;
     this.isHolding = false;
     this.isCharged = false;
     this.isClickable = true;
+    this.isTouching = false;
     this.targetFrame = 0;
     this.element.style.filter = "drop-shadow(0 0 0px rgba(0,0,0,0))";
+    this.element.classList.remove('touching');
     if (this.chargeTimer) {
       clearTimeout(this.chargeTimer);
       this.chargeTimer = null;
     }
   }
   
-  /**
-   * Setup mouse event listeners
-   */
   setupListeners() {
+    // DESKTOP: Mouse events
     this.element.addEventListener('mouseenter', () => {
-      // Don't respond if icon is hidden
-      if (this.element.classList.contains('hidden')) return;
+      if (this.element.classList.contains('hidden') || DeviceDetector.isTouchDevice) return;
       
       this.isHovering = true;
       this.isCharged = false;
@@ -624,21 +625,51 @@ class SequenceIcon {
     });
     
     this.element.addEventListener('mouseleave', () => {
+      if (DeviceDetector.isTouchDevice) return;
+      this.reset();
+    });
+    
+    // MOBILE: Touch events
+    this.element.addEventListener('touchstart', (e) => {
+      e.preventDefault(); // Prevent ghost clicks
+      if (this.element.classList.contains('hidden')) return;
+      
+      this.isTouching = true;
+      this.isHovering = true;
+      this.isClickable = true;
+      this.element.classList.add('touching');
+      this.element.style.filter =
+        "drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))";
+      
+      // Faster charge time for mobile
+      this.chargeTimer = setTimeout(() => {
+        this.isCharged = true;
+        if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
+      }, CONFIG.TIMING.TOUCH_CHARGE_TIME);
+    }, { passive: false });
+    
+    this.element.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      
+      // If icon was charged, trigger click
+      if (this.isCharged && this.isClickable) {
+        this.element.click();
+      }
+      
+      this.reset();
+    }, { passive: false });
+    
+    this.element.addEventListener('touchcancel', () => {
       this.reset();
     });
   }
   
-  /**
-   * Animation loop
-   */
   animate() {
     if (this.isCharged) {
       if (this.holdFrame === null) {
-        // Looping animation
         this.currentFrame += this.speed * this.frameCount * this.loopSpeed;
         if (this.currentFrame >= this.frameCount - 1) this.currentFrame = 0;
       } else {
-        // Hold frame animation
         if (this.isHovering && !this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
           this.isHolding = true;
           this.isClickable = true;
@@ -654,14 +685,12 @@ class SequenceIcon {
         }
       }
     } else {
-      // Reverse animation
       if (this.currentFrame > 0) {
         this.currentFrame -= this.speed * this.frameCount * this.reverseSpeed;
         if (this.currentFrame < 0) this.currentFrame = 0;
       }
     }
     
-    // Update image
     const frameIndex = Math.round(this.currentFrame);
     if (this.frames[frameIndex] && this.frames[frameIndex].complete) {
       this.img.src = this.frames[frameIndex].src;
@@ -670,8 +699,9 @@ class SequenceIcon {
     requestAnimationFrame(() => this.animate());
   }
 }
+
 /* ========================================================================
-   TRANSITION MANAGER - Handles page transitions
+   TRANSITION MANAGER
    ======================================================================== */
 const TransitionManager = {
   isTransitioning: false,
@@ -679,25 +709,16 @@ const TransitionManager = {
   contactsPage: null,
   mainContent: null,
   
-  /**
-   * Initialize transition manager
-   */
   init() {
     this.transitionVideo = Utils.getElement('transitionVideo');
     this.contactsPage = Utils.getElement('contactsPage');
     this.mainContent = Utils.getElement('mainContent');
     const backButton = Utils.getElement('backButton');
     
-    // Setup click handlers
     this.setupForwardTransition();
     this.setupReverseTransition(backButton);
   },
   
-  /**
-   * Setup video for transition
-   * @param {string} videoPath - Path to transition video
-   * @returns {Promise}
-   */
   async setupTransitionVideo(videoPath) {
     const video = this.transitionVideo;
     const source = video.querySelector('source');
@@ -711,9 +732,6 @@ const TransitionManager = {
     return video.play();
   },
   
-  /**
-   * Setup forward transition (Home → Contacts)
-   */
   setupForwardTransition() {
     const contactsIcon = window.iconInstances.contacts;
     
@@ -729,19 +747,16 @@ const TransitionManager = {
         
         await this.setupTransitionVideo(CONFIG.TRANSITION.FORWARD_PATH);
         
-        // Fade out icons
         setTimeout(() => {
           document.querySelectorAll('.icon').forEach(icon => {
             icon.classList.add('hidden');
           });
         }, CONFIG.TIMING.ICON_FADE_DELAY);
         
-        // Wait for video to end
         await new Promise(resolve => {
           this.transitionVideo.onended = resolve;
         });
         
-        // Switch pages
         this.mainContent.style.display = 'none';
         this.contactsPage.style.display = 'flex';
         this.transitionVideo.style.display = 'none';
@@ -757,10 +772,6 @@ const TransitionManager = {
     });
   },
   
-  /**
-   * Setup reverse transition (Contacts → Home)
-   * @param {HTMLElement} backButton - Back button element
-   */
   setupReverseTransition(backButton) {
     backButton.addEventListener('click', async () => {
       if (this.isTransitioning) return;
@@ -772,20 +783,22 @@ const TransitionManager = {
         Utils.getElement('bgFreeze').style.display = 'block';
         this.mainContent.style.display = 'block';
         
-        // Show icons immediately
         document.querySelectorAll('.icon').forEach(icon => {
           icon.classList.remove('hidden');
           icon.style.opacity = '1';
         });
         
-        // Reset eye opacity
+        // Reset all icon instances
+        Object.values(window.iconInstances).forEach(iconInstance => {
+          iconInstance.reset();
+        });
+        
         const eyeOffset = Utils.getElement('eyeOffset');
         eyeOffset.style.transition = 'none';
         eyeOffset.style.opacity = '1';
         void eyeOffset.offsetHeight;
         eyeOffset.style.transition = 'opacity 0.8s ease';
         
-        // Play reverse video
         await this.setupTransitionVideo(CONFIG.TRANSITION.REVERSE_PATH);
         
         await new Promise(resolve => {
@@ -794,7 +807,6 @@ const TransitionManager = {
         
         this.transitionVideo.style.display = 'none';
         
-        // Blink after transition
         setTimeout(() => {
           EyeSystem.blinkOnce();
         }, 100);
@@ -810,10 +822,6 @@ const TransitionManager = {
     });
   },
   
-  /**
-   * Handle transition errors
-   * @param {boolean} showContacts - Whether to show contacts page on error
-   */
   handleTransitionError(showContacts) {
     this.transitionVideo.style.display = 'none';
     
@@ -834,7 +842,7 @@ const TransitionManager = {
 };
 
 /* ========================================================================
-   EYE SYSTEM - Handles eye tracking and blinking
+   EYE SYSTEM - MOBILE & DESKTOP TRACKING
    ======================================================================== */
 const EyeSystem = {
   eyeMove: null,
@@ -846,9 +854,6 @@ const EyeSystem = {
   eyeActive: false,
   eyeActivationTriggered: false,
   
-  /**
-   * Initialize the eye system
-   */
   init() {
     this.eyeMove = Utils.getElement("eyeMove");
     this.eyeOffset = Utils.getElement("eyeOffset");
@@ -858,13 +863,10 @@ const EyeSystem = {
     this.ctx = this.bgFreeze.getContext("2d");
     
     this.setupVideoListeners();
-    this.setupMouseTracking();
+    this.setupTracking(); // Combined mouse + touch tracking
     this.setupFallback();
   },
   
-  /**
-   * Setup video event listeners for eye activation
-   */
   setupVideoListeners() {
     this.bgVideo.addEventListener('loadeddata', () => {
       Utils.log('🎥 Background video loaded!');
@@ -884,9 +886,6 @@ const EyeSystem = {
     });
   },
   
-  /**
-   * Activate the eye (freeze video and start blinking)
-   */
   activateEye() {
     this.eyeActivationTriggered = true;
     
@@ -917,22 +916,37 @@ const EyeSystem = {
     }
   },
   
-  /**
-   * Setup mouse tracking for eye movement
-   */
-  setupMouseTracking() {
+  setupTracking() {
+    // DESKTOP: Mouse tracking
     document.addEventListener("mousemove", (e) => {
-      if (this.eyeActive) {
-        const x = (e.clientX / window.innerWidth  - 0.5) * 120;
-        const y = (e.clientY / window.innerHeight - 0.5) * 60;
-        this.eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+      if (this.eyeActive && !DeviceDetector.isTouchDevice) {
+        this.updateEyePosition(e.clientX, e.clientY);
       }
     });
+    
+    // MOBILE: Touch tracking
+    document.addEventListener("touchmove", (e) => {
+      if (this.eyeActive && e.touches.length > 0) {
+        const touch = e.touches[0];
+        this.updateEyePosition(touch.clientX, touch.clientY);
+      }
+    }, { passive: true });
+    
+    // Also track single touches (tap and hold)
+    document.addEventListener("touchstart", (e) => {
+      if (this.eyeActive && e.touches.length > 0) {
+        const touch = e.touches[0];
+        this.updateEyePosition(touch.clientX, touch.clientY);
+      }
+    }, { passive: true });
   },
   
-  /**
-   * Setup fallback in case video doesn't load
-   */
+  updateEyePosition(clientX, clientY) {
+    const x = (clientX / window.innerWidth  - 0.5) * 120;
+    const y = (clientY / window.innerHeight - 0.5) * 60;
+    this.eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+  },
+  
   setupFallback() {
     setTimeout(() => {
       if (!this.eyeActive) {
@@ -944,9 +958,6 @@ const EyeSystem = {
     }, CONFIG.TIMING.EYE_FALLBACK_TIMEOUT);
   },
   
-  /**
-   * Perform a single blink
-   */
   blinkOnce() {
     this.blinkLid.style.animation = `blink ${CONFIG.TIMING.BLINK_SPEED}ms ease-in-out`;
     this.blinkLid.addEventListener("animationend", () => {
@@ -954,9 +965,6 @@ const EyeSystem = {
     }, { once: true });
   },
   
-  /**
-   * Perform a blink (with chance of double blink)
-   */
   blink() {
     this.blinkOnce();
     if (Math.random() < CONFIG.EYE.DOUBLE_BLINK_CHANCE) {
@@ -964,9 +972,6 @@ const EyeSystem = {
     }
   },
   
-  /**
-   * Start the blinking loop
-   */
   startBlinking() {
     const loop = () => {
       this.blink();
@@ -977,10 +982,6 @@ const EyeSystem = {
     loop();
   },
   
-  /**
-   * Reset eye to center position
-   * @returns {Promise}
-   */
   resetToCenter() {
     return new Promise((resolve) => {
       const transformAttr = this.eyeMove.getAttribute('transform') || 'translate(0, 0)';
@@ -1014,9 +1015,12 @@ const EyeSystem = {
 };
 
 /* ========================================================================
-   INITIALIZATION - Start everything when DOM is ready
+   INITIALIZATION
    ======================================================================== */
 document.addEventListener('DOMContentLoaded', () => {
+  // Detect device
+  DeviceDetector.init();
+  
   // Initialize preloader
   Preloader.init();
   
