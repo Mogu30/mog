@@ -5,37 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>MOG - Portfolio</title>
 
+<!-- GSAP from cdnjs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
 <style>
 /* ========================================================================
-   CSS VARIABLES - Easy theming and maintenance
+   CSS VARIABLES
    ======================================================================== */
 :root {
-  /* Z-index layers */
   --z-background: 0;
   --z-content: 1;
   --z-icons: 2;
   --z-transition: 999;
   --z-loading: 9999;
-  
-  /* Colors */
+
   --color-bg: black;
   --color-text: white;
   --color-accent: #333;
-  
-  /* Timing */
+
   --transition-fast: 0.1s;
   --transition-normal: 0.3s;
-  --transition-slow: 0.5s;
-  --transition-eye: 0.8s;
-  
-  /* Spacing */
+
   --space-sm: 1rem;
   --space-md: 2rem;
   --space-lg: 3rem;
 }
 
 /* ========================================================================
-   BASE STYLES
+   BASE
    ======================================================================== */
 html, body {
   margin: 0;
@@ -46,7 +43,6 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Prevent pull-to-refresh and overscroll on mobile */
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -66,19 +62,11 @@ html, body {
   color: var(--color-text);
   font-family: Arial, sans-serif;
 }
-
-#loadingScreen h2 {
-  font-size: 2rem;
-  margin-bottom: var(--space-sm);
-}
-
-#loadingProgress {
-  font-size: 1.2rem;
-  opacity: 0.7;
-}
+#loadingScreen h2 { font-size: 2rem; margin-bottom: var(--space-sm); }
+#loadingProgress { font-size: 1.2rem; opacity: 0.7; }
 
 /* ========================================================================
-   MAIN CONTAINER
+   CONTAINER  — opacity animated by GSAP on load, no CSS transition needed
    ======================================================================== */
 #container {
   position: relative;
@@ -88,21 +76,14 @@ html, body {
   max-height: calc(100vw * 9 / 16);
   background: var(--color-bg);
   opacity: 0;
-  transition: opacity var(--transition-slow) ease;
-  /* Prevent touch highlighting on mobile */
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-}
-
-#container.loaded {
-  opacity: 1;
 }
 
 /* ========================================================================
    BACKGROUND VIDEO & FREEZE
    ======================================================================== */
-#bgVideo,
-#bgFreeze {
+#bgVideo, #bgFreeze {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -110,10 +91,7 @@ html, body {
   object-fit: contain;
   z-index: var(--z-background);
 }
-
-#bgFreeze {
-  display: none;
-}
+#bgFreeze { display: none; }
 
 /* ========================================================================
    CONTENT LAYERS
@@ -126,7 +104,8 @@ html, body {
   z-index: var(--z-content);
 }
 
-#contactsPage {
+/* Pages — opacity / children animated entirely by GSAP */
+#contactsPage, #eduPage {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -142,7 +121,7 @@ html, body {
 }
 
 /* ========================================================================
-   TRANSITION VIDEO OVERLAY
+   TRANSITION VIDEO
    ======================================================================== */
 #transitionVideo {
   position: absolute;
@@ -154,9 +133,11 @@ html, body {
   display: none;
   pointer-events: none;
 }
+/* Edu: video behind icons so their fade is visible */
+#transitionVideo.under-icons { z-index: 0; }
 
 /* ========================================================================
-   SVG & EYE SYSTEM
+   SVG / EYE  — opacity managed by GSAP
    ======================================================================== */
 svg {
   position: absolute;
@@ -167,22 +148,14 @@ svg {
   will-change: transform;
   transform: translateZ(0);
 }
-
-#eyeOffset {
-  opacity: 0;
-  transition: opacity var(--transition-eye) ease;
-}
+#eyeOffset { opacity: 0; }   /* GSAP sets this */
 
 #blinkLid {
   transform-origin: 50% 50%;
   transform: scaleY(0);
   pointer-events: none;
 }
-
-/* Moved inline style to CSS */
-#reflections {
-  mix-blend-mode: screen;
-}
+#reflections { mix-blend-mode: screen; }
 
 @keyframes blink {
   0%   { transform: scaleY(0) translateY(-50%); }
@@ -192,7 +165,7 @@ svg {
 }
 
 /* ========================================================================
-   ICONS
+   ICONS  — opacity managed by GSAP; only filter keeps a CSS transition
    ======================================================================== */
 .icon {
   position: absolute;
@@ -204,20 +177,16 @@ svg {
   cursor: pointer;
   filter: drop-shadow(0 0 0px rgba(0,0,0,0));
   opacity: 1;
-  transition: filter var(--transition-fast) ease, opacity var(--transition-normal) ease;
+  transition: filter var(--transition-fast) ease;
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;
-  /* Better touch target on mobile */
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
 }
-
-.icon.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
+/* Flag class — pointer-events only; GSAP handles the opacity */
+.icon.icon-hidden { pointer-events: none; }
 
 .icon img {
   width: 100%;
@@ -225,34 +194,27 @@ svg {
   display: block;
   object-fit: contain;
   pointer-events: none;
-  /* Prevent image drag on mobile */
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
-
-/* Mobile-specific: Show visual feedback for touch */
-.icon.touching {
-  filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
-}
+.icon.touching { filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
 
 /* ========================================================================
-   CONTACTS PAGE
+   PAGE CONTENT STYLES
    ======================================================================== */
-#contactsPage h1 {
+#contactsPage h1, #eduPage h1 {
   font-size: 4rem;
   margin-bottom: var(--space-md);
   text-transform: uppercase;
   letter-spacing: 0.5rem;
 }
-
-#contactsPage p {
+#contactsPage p, #eduPage p {
   font-size: 1.5rem;
   margin-bottom: var(--space-lg);
   opacity: 0.7;
 }
-
-#backButton {
+.backButton {
   padding: var(--space-sm) var(--space-lg);
   font-size: 1.2rem;
   background: var(--color-text);
@@ -264,38 +226,19 @@ svg {
   transition: all var(--transition-normal) ease;
   -webkit-tap-highlight-color: transparent;
 }
-
-#backButton:hover {
-  background: var(--color-accent);
-  color: var(--color-text);
-  transform: scale(1.05);
-}
-
-#backButton:active {
-  transform: scale(0.95);
-}
+.backButton:hover { background: var(--color-accent); color: var(--color-text); transform: scale(1.05); }
+.backButton:active { transform: scale(0.95); }
 
 /* ========================================================================
-   MOBILE RESPONSIVE
+   RESPONSIVE
    ======================================================================== */
 @media (max-width: 768px) {
-  #contactsPage h1 {
-    font-size: 2.5rem;
-    letter-spacing: 0.3rem;
-  }
-  
-  #contactsPage p {
-    font-size: 1.2rem;
-  }
-  
-  #backButton {
-    font-size: 1rem;
-    padding: 0.8rem 2rem;
-  }
+  #contactsPage h1, #eduPage h1 { font-size: 2.5rem; letter-spacing: 0.3rem; }
+  #contactsPage p, #eduPage p   { font-size: 1.2rem; }
+  .backButton { font-size: 1rem; padding: 0.8rem 2rem; }
 }
 </style>
 </head>
-
 <body>
 
 <!-- Loading Screen -->
@@ -309,22 +252,13 @@ svg {
     <source src="mog.mov">
   </video>
   <canvas id="bgFreeze"></canvas>
-  
-  <!-- Main home page with eye and icons -->
+
+  <!-- Home -->
   <div id="mainContent">
-    <!-- Icons with accessibility labels -->
-    <div class="icon" id="icon-art" role="button" aria-label="Art Portfolio" tabindex="0">
-      <img src="frames/art/Frame_00000.png" alt="Art Portfolio Icon">
-    </div>
-    <div class="icon" id="icon-edu" role="button" aria-label="Education" tabindex="0">
-      <img src="frames/edu/Frame_00000.png" alt="Education Icon">
-    </div>
-    <div class="icon" id="icon-contacts" role="button" aria-label="Contacts" tabindex="0">
-      <img src="frames/contacts/Frame_00000.png" alt="Contacts Icon">
-    </div>
-    <div class="icon" id="icon-work" role="button" aria-label="Work" tabindex="0">
-      <img src="frames/work/Frame_00000.png" alt="Work Icon">
-    </div>
+    <div class="icon" id="icon-art"      role="button" aria-label="Art Portfolio" tabindex="0"><img src="frames/art/Frame_00000.png"      alt="Art Portfolio Icon"></div>
+    <div class="icon" id="icon-edu"      role="button" aria-label="Education"     tabindex="0"><img src="frames/edu/Frame_00000.png"      alt="Education Icon"></div>
+    <div class="icon" id="icon-contacts" role="button" aria-label="Contacts"      tabindex="0"><img src="frames/contacts/Frame_00000.png" alt="Contacts Icon"></div>
+    <div class="icon" id="icon-work"     role="button" aria-label="Work"          tabindex="0"><img src="frames/work/Frame_00000.png"     alt="Work Icon"></div>
 
     <svg viewBox="0 0 1920 1080" aria-hidden="true">
       <defs>
@@ -332,7 +266,6 @@ svg {
           <image href="mask.png" x="0" y="0" width="1920" height="1080" preserveAspectRatio="none"/>
         </mask>
       </defs>
-
       <g id="eyeContainer" transform="translate(960,535) scale(1) translate(-960,-540)">
         <g id="eyeOffset">
           <image href="White.png" x="0" y="0" width="1920" height="1080"/>
@@ -340,24 +273,33 @@ svg {
             <g id="eyeMove">
               <image href="Iris.png" x="0" y="0" width="1920" height="1080"/>
             </g>
-            <!-- Moved inline style to CSS -->
-            <image id="reflections" href="reflections.png" x="-690" y="-487" width="3090" height="2390" />
+            <g id="reflectionsMove">
+              <image id="reflections" href="reflections.png" x="-690" y="-487" width="3090" height="2390"/>
+            </g>
             <rect id="blinkLid" x="0" y="0" width="1920" height="1080" fill="black"/>
           </g>
         </g>
       </g>
     </svg>
   </div>
-  
+
   <!-- Contacts Page -->
   <div id="contactsPage">
     <h1>Contacts</h1>
     <p>This is the contacts page content.</p>
     <p>You can add your contact information here!</p>
-    <button id="backButton">← Back to Home</button>
+    <button class="backButton" id="backButtonContacts">← Back to Home</button>
   </div>
-  
-  <!-- Transition Video overlay -->
+
+  <!-- Education Page -->
+  <div id="eduPage">
+    <h1>Education</h1>
+    <p>This is the education page content.</p>
+    <p>Coming soon!</p>
+    <button class="backButton" id="backButtonEdu">← Back to Home</button>
+  </div>
+
+  <!-- Transition Video -->
   <video id="transitionVideo" muted playsinline webkit-playsinline>
     <source src="" type="video/webm">
   </video>
@@ -372,7 +314,6 @@ svg {
 const DeviceDetector = {
   isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
   isTouchDevice: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-  
   init() {
     console.log('📱 Device type:', this.isMobile ? 'Mobile' : 'Desktop');
     console.log('👆 Touch support:', this.isTouchDevice ? 'Yes' : 'No');
@@ -380,91 +321,77 @@ const DeviceDetector = {
 };
 
 /* ========================================================================
-   CONFIGURATION CONSTANTS - All magic numbers in one place!
+   CONFIG
    ======================================================================== */
 const CONFIG = {
-  // Asset paths
   ASSETS: {
     CRITICAL: [
-      'mog.mov',
-      'White.png',
-      'Iris.png',
-      'mask.png',
-      'reflections.png',
-      'transition.webm',
-      'reverse.webm'
+      'mog.mov','White.png','Iris.png','mask.png','reflections.png',
+      'transition.webm','reverse.webm','edu_transition.webm','edu_reverse.webm'
     ]
   },
-  
-  // Timing constants
+
   TIMING: {
-    ICON_FADE_DELAY: 2168,
+    CONTACTS_ICON_FADE:     2168,   // ms into contacts forward video → icons start fading
+    EDU_ICON_FADE:          1006,   // ms into edu forward video → icons start fading
+    EDU_REVERSE_ICON_FADE:  725,    // ms into edu reverse video → icons fade back in
     BLINK_AFTER_TRANSITION: 150,
-    EYE_ACTIVATE_TIME: 4.037,
-    RESET_EYE_DURATION: 800,
-    LOADING_DELAY: 500,
-    BLINK_SPEED: 150,
-    DOUBLE_BLINK_DELAY: 180,
-    BLINK_MIN_DELAY: 2400,
-    BLINK_MAX_DELAY: 5000,
-    EYE_FALLBACK_TIMEOUT: 8000,
-    TOUCH_CHARGE_TIME: 300  // Faster charge on mobile
+    EYE_ACTIVATE_TIME:      4.037,  // seconds into bgVideo
+    LOADING_DELAY:          500,
+    BLINK_SPEED:            150,
+    DOUBLE_BLINK_DELAY:     180,
+    BLINK_MIN_DELAY:        2400,
+    BLINK_MAX_DELAY:        5000,
+    EYE_FALLBACK_TIMEOUT:   8000
   },
-  
-  // Icon animation speeds
+
   ICON_SPEEDS: {
-    CHARGE_TIME: 500,
-    TOUCH_CHARGE_TIME: 300, // Faster for mobile
-    ART_FORWARD: 2,
-    ART_REVERSE: 0.3,
-    EDU_FORWARD: 0.3,
-    EDU_REVERSE: 0.3,
-    CONTACTS_FORWARD: 0.85,
-    CONTACTS_REVERSE: 0.3,
-    WORK_LOOP: 0.2,
-    WORK_REVERSE: 0.3
+    ART_FORWARD: 2, ART_REVERSE: 0.3,
+    EDU_FORWARD: 0.3, EDU_REVERSE: 0.3,
+    CONTACTS_FORWARD: 0.85, CONTACTS_REVERSE: 0.3,
+    WORK_LOOP: 0.2, WORK_REVERSE: 0.3
   },
-  
-  // Layout
-  LAYOUT: {
-    DESIGN_WIDTH: 1920,
-    DESIGN_HEIGHT: 1080
-  },
-  
-  // Icon positions
+
+  LAYOUT: { DESIGN_WIDTH: 1920, DESIGN_HEIGHT: 1080 },
+
   ICON_SETTINGS: {
-    "icon-art":      { x: 220,  y: 810, scale: 2.5 },
-    "icon-edu":      { x: 230,  y: 225, scale: 2.5 },
+    "icon-art":      { x: 220,  y: 810, scale: 2.5  },
+    "icon-edu":      { x: 230,  y: 225, scale: 2.5  },
     "icon-work":     { x: 1690, y: 235, scale: 2.25 },
     "icon-contacts": { x: 1690, y: 810, scale: 2.35 }
   },
-  
-  // Transition
+
   TRANSITION: {
     OFFSET: 1,
-    FORWARD_PATH: 'transition.webm',
-    REVERSE_PATH: 'reverse.webm'
+    CONTACTS_FORWARD: 'transition.webm',
+    CONTACTS_REVERSE: 'reverse.webm',
+    EDU_FORWARD:      'edu_transition.webm',
+    EDU_REVERSE:      'edu_reverse.webm'
   },
-  
-  // Eye animation
-  EYE: {
-    DOUBLE_BLINK_CHANCE: 0.3
+
+  EYE: { DOUBLE_BLINK_CHANCE: 0.3, REFLECTION_MOVEMENT: 0.1 },
+
+  // All GSAP durations live here (in seconds)
+  GSAP: {
+    CONTAINER_FADE:          0.5,
+    ICON_FADE:               0.6,
+    EYE_FADE_FAST:           0.15,   // eye ↔ transition video hand-off
+    EYE_FADE_ACTIVATE:       0.3,    // very first eye appearance
+    EYE_RESET_DURATION:      0.8,    // eye gliding back to center
+    PAGE_CONTENT_DURATION:   0.4,    // each child fade
+    PAGE_CONTENT_STAGGER:    0.13,   // delay between children
+    PAGE_CONTENT_DELAY:      0.15    // initial delay before first child
   },
-  
-  // Debug mode
+
   DEBUG: false
 };
 
 /* ========================================================================
-   UTILITY FUNCTIONS
+   UTILS
    ======================================================================== */
 const Utils = {
-  log: (...args) => {
-    if (CONFIG.DEBUG) console.log(...args);
-  },
-  
-  wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
-  
+  log: (...args) => { if (CONFIG.DEBUG) console.log(...args); },
+  wait: (ms) => new Promise(r => setTimeout(r, ms)),
   getElement: (id) => {
     const el = document.getElementById(id);
     if (!el) console.error(`Element not found: ${id}`);
@@ -473,82 +400,68 @@ const Utils = {
 };
 
 /* ========================================================================
-   PRELOADER MODULE
+   PRELOADER
    ======================================================================== */
 const Preloader = {
   loadedCount: 0,
   totalAssets: CONFIG.ASSETS.CRITICAL.length,
-  
+
   init() {
     const loadingScreen = Utils.getElement('loadingScreen');
     const loadingProgress = Utils.getElement('loadingProgress');
     const container = Utils.getElement('container');
-    
+
     CONFIG.ASSETS.CRITICAL.forEach(src => {
       const ext = src.split('.').pop();
-      
-      if (['mp4', 'mov', 'webm'].includes(ext)) {
-        this.preloadVideo(src);
-      } else {
-        this.preloadImage(src);
-      }
+      if (['mp4','mov','webm'].includes(ext)) this.preloadVideo(src);
+      else this.preloadImage(src);
     });
-    
-    const updateProgress = () => {
+
+    this.updateProgress = () => {
       this.loadedCount++;
-      const percent = Math.round((this.loadedCount / this.totalAssets) * 100);
-      loadingProgress.textContent = `Loading assets... ${percent}%`;
-      
+      const pct = Math.round((this.loadedCount / this.totalAssets) * 100);
+      loadingProgress.textContent = `Loading assets... ${pct}%`;
+
       if (this.loadedCount === this.totalAssets) {
         setTimeout(() => {
           loadingScreen.style.display = 'none';
-          container.classList.add('loaded');
+          gsap.to(container, { opacity: 1, duration: CONFIG.GSAP.CONTAINER_FADE, ease: 'power2.out' });
         }, CONFIG.TIMING.LOADING_DELAY);
       }
     };
-    
-    this.updateProgress = updateProgress;
   },
-  
+
   preloadVideo(src) {
-    const video = document.createElement('video');
-    video.onloadeddata = () => this.updateProgress();
-    video.onerror = () => this.updateProgress();
-    video.src = src;
+    const v = document.createElement('video');
+    v.onloadeddata = () => this.updateProgress();
+    v.onerror      = () => this.updateProgress();
+    v.src = src;
   },
-  
   preloadImage(src) {
-    const img = new Image();
-    img.onload = () => this.updateProgress();
-    img.onerror = () => this.updateProgress();
-    img.src = src;
+    const i = new Image();
+    i.onload = () => this.updateProgress();
+    i.onerror = () => this.updateProgress();
+    i.src = src;
   }
 };
 
 /* ========================================================================
-   ICON POSITIONING MODULE
+   ICON POSITIONING
    ======================================================================== */
 const IconPositioner = {
   positionIcons() {
     const container = Utils.getElement('container');
-    const containerWidth = container.offsetWidth;
-    const containerHeight = container.offsetHeight;
-    
+    const cw = container.offsetWidth, ch = container.offsetHeight;
     for (const id in CONFIG.ICON_SETTINGS) {
       const el = Utils.getElement(id);
       if (!el) continue;
-      
       const s = CONFIG.ICON_SETTINGS[id];
-      const scaleX = containerWidth / CONFIG.LAYOUT.DESIGN_WIDTH;
-      const scaleY = containerHeight / CONFIG.LAYOUT.DESIGN_HEIGHT;
-      const scale = Math.min(scaleX, scaleY);
-
-      el.style.left = (s.x / CONFIG.LAYOUT.DESIGN_WIDTH) * 100 + "%";
-      el.style.top  = (s.y / CONFIG.LAYOUT.DESIGN_HEIGHT) * 100 + "%";
+      const scale = Math.min(cw / CONFIG.LAYOUT.DESIGN_WIDTH, ch / CONFIG.LAYOUT.DESIGN_HEIGHT);
+      el.style.left = (s.x / CONFIG.LAYOUT.DESIGN_WIDTH) * 100 + '%';
+      el.style.top  = (s.y / CONFIG.LAYOUT.DESIGN_HEIGHT) * 100 + '%';
       el.style.transform = `translate(-50%, -50%) scale(${s.scale * scale})`;
     }
   },
-  
   init() {
     this.positionIcons();
     window.addEventListener('resize', () => this.positionIcons());
@@ -556,132 +469,98 @@ const IconPositioner = {
 };
 
 /* ========================================================================
-   SEQUENCE ICON CLASS - MOBILE & DESKTOP SUPPORT
+   SEQUENCE ICON  — frame-swapping, untouched by GSAP migration
    ======================================================================== */
 class SequenceIcon {
   constructor(element, frameCount, folder, holdFrame = null, speed = 0.04, forwardSpeed = 0.5, reverseSpeed = 0.3, loopSpeed = 0.2) {
-    this.element = element;
-    this.img = element.querySelector('img');
-    this.frameCount = frameCount;
-    this.folder = folder;
-    this.holdFrame = holdFrame;
-    this.speed = speed;
+    this.element      = element;
+    this.img          = element.querySelector('img');
+    this.frameCount   = frameCount;
+    this.folder       = folder;
+    this.holdFrame    = holdFrame;
+    this.speed        = speed;
     this.forwardSpeed = forwardSpeed;
     this.reverseSpeed = reverseSpeed;
-    this.loopSpeed = loopSpeed;
+    this.loopSpeed    = loopSpeed;
     this.currentFrame = 0;
-    this.targetFrame = 0;
-    this.isHovering = false;
-    this.isHolding = false;
-    this.isCharged = false;
-    this.chargeTimer = null;
-    this.isClickable = true;
-    this.isTouching = false;
-    
+    this.targetFrame  = 0;
+    this.isHovering   = false;
+    this.isHolding    = false;
+    this.isTouching   = false;
+    this.animationFrame = null;
     this.preloadFrames();
     this.setupListeners();
     this.animate();
   }
-  
+
   preloadFrames() {
     this.frames = [];
     for (let i = 0; i < this.frameCount; i++) {
       const img = new Image();
-      const frameNum = String(i).padStart(5, '0');
-      img.src = `frames/${this.folder}/Frame_${frameNum}.png`;
+      img.src = `frames/${this.folder}/Frame_${String(i).padStart(5,'0')}.png`;
       this.frames.push(img);
     }
   }
-  
+
   reset() {
-    this.isHovering = false;
-    this.isHolding = false;
-    this.isCharged = false;
-    this.isClickable = true;
-    this.isTouching = false;
-    this.targetFrame = 0;
-    this.element.style.filter = "drop-shadow(0 0 0px rgba(0,0,0,0))";
+    if (this.animationFrame) { cancelAnimationFrame(this.animationFrame); this.animationFrame = null; }
+    this.isHovering = this.isHolding = this.isTouching = false;
+    this.targetFrame = this.currentFrame = 0;
+    this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
     this.element.classList.remove('touching');
-    if (this.chargeTimer) {
-      clearTimeout(this.chargeTimer);
-      this.chargeTimer = null;
-    }
+    if (this.frames[0] && this.frames[0].complete) this.img.src = this.frames[0].src;
+    this.animate();
   }
-  
+
   setupListeners() {
-    // DESKTOP: Mouse events
     this.element.addEventListener('mouseenter', () => {
-      if (this.element.classList.contains('hidden') || DeviceDetector.isTouchDevice) return;
-      
+      if (DeviceDetector.isTouchDevice) return;
       this.isHovering = true;
-      this.isCharged = false;
-      this.isClickable = true;
-      this.element.style.filter =
-        "drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))";
-      this.chargeTimer = setTimeout(() => {
-        this.isCharged = true;
-        if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
-      }, CONFIG.ICON_SPEEDS.CHARGE_TIME);
+      this.element.style.filter = 'drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))';
+      if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
     });
-    
     this.element.addEventListener('mouseleave', () => {
       if (DeviceDetector.isTouchDevice) return;
-      this.reset();
+      this.isHovering = this.isHolding = false;
+      this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
     });
-    
-    // MOBILE: Touch events
     this.element.addEventListener('touchstart', (e) => {
-      e.preventDefault(); // Prevent ghost clicks
-      if (this.element.classList.contains('hidden')) return;
-      
-      this.isTouching = true;
-      this.isHovering = true;
-      this.isClickable = true;
+      e.preventDefault();
+      this.isTouching = this.isHovering = true;
       this.element.classList.add('touching');
-      this.element.style.filter =
-        "drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))";
-      
-      // Faster charge time for mobile
-      this.chargeTimer = setTimeout(() => {
-        this.isCharged = true;
-        if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
-      }, CONFIG.TIMING.TOUCH_CHARGE_TIME);
+      this.element.style.filter = 'drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))';
+      if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
     }, { passive: false });
-    
     this.element.addEventListener('touchend', (e) => {
       e.preventDefault();
-      
-      // If icon was charged, trigger click
-      if (this.isCharged && this.isClickable) {
-        this.element.click();
-      }
-      
-      this.reset();
+      this.element.click();
+      this.isHovering = this.isHolding = this.isTouching = false;
+      this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
+      this.element.classList.remove('touching');
     }, { passive: false });
-    
     this.element.addEventListener('touchcancel', () => {
-      this.reset();
+      this.isHovering = this.isHolding = this.isTouching = false;
+      this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
+      this.element.classList.remove('touching');
     });
   }
-  
+
   animate() {
-    if (this.isCharged) {
+    if (this.isHovering) {
       if (this.holdFrame === null) {
         this.currentFrame += this.speed * this.frameCount * this.loopSpeed;
         if (this.currentFrame >= this.frameCount - 1) this.currentFrame = 0;
       } else {
-        if (this.isHovering && !this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
+        if (!this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
           this.isHolding = true;
-          this.isClickable = true;
           this.currentFrame = this.holdFrame;
-          this.targetFrame = this.holdFrame;
+          this.targetFrame  = this.holdFrame;
         }
         if (!this.isHolding) {
-          const distance = Math.abs(this.targetFrame - this.currentFrame);
-          let easingSpeed = this.speed * this.forwardSpeed;
-          if (distance < 2) easingSpeed = 0.5;
-          this.currentFrame += (this.targetFrame - this.currentFrame) * easingSpeed;
-          if (distance < 0.1) this.currentFrame = this.targetFrame;
+          const dist = Math.abs(this.targetFrame - this.currentFrame);
+          const spd  = dist < 2 ? 0.5 : this.speed * this.forwardSpeed;
+          this.currentFrame += (this.targetFrame - this.currentFrame) * spd;
+          if (dist < 0.1) this.currentFrame = this.targetFrame;
         }
       }
     } else {
@@ -690,13 +569,9 @@ class SequenceIcon {
         if (this.currentFrame < 0) this.currentFrame = 0;
       }
     }
-    
-    const frameIndex = Math.round(this.currentFrame);
-    if (this.frames[frameIndex] && this.frames[frameIndex].complete) {
-      this.img.src = this.frames[frameIndex].src;
-    }
-    
-    requestAnimationFrame(() => this.animate());
+    const idx = Math.round(this.currentFrame);
+    if (this.frames[idx] && this.frames[idx].complete) this.img.src = this.frames[idx].src;
+    this.animationFrame = requestAnimationFrame(() => this.animate());
   }
 }
 
@@ -707,364 +582,364 @@ const TransitionManager = {
   isTransitioning: false,
   transitionVideo: null,
   contactsPage: null,
+  eduPage: null,
   mainContent: null,
-  
+
   init() {
     this.transitionVideo = Utils.getElement('transitionVideo');
-    this.contactsPage = Utils.getElement('contactsPage');
-    this.mainContent = Utils.getElement('mainContent');
-    const backButton = Utils.getElement('backButton');
-    
-    this.setupForwardTransition();
-    this.setupReverseTransition(backButton);
+    this.contactsPage    = Utils.getElement('contactsPage');
+    this.eduPage         = Utils.getElement('eduPage');
+    this.mainContent     = Utils.getElement('mainContent');
+    this.setupContactsTransition();
+    this.setupEduTransition();
+    this.setupReverseTransition(Utils.getElement('backButtonContacts'), 'contacts');
+    this.setupReverseTransition(Utils.getElement('backButtonEdu'),      'edu');
   },
-  
-  async setupTransitionVideo(videoPath) {
-    const video = this.transitionVideo;
-    const source = video.querySelector('source');
-    
-    video.style.transform = `translateY(${CONFIG.TRANSITION.OFFSET}px)`;
-    source.src = videoPath;
-    video.load();
-    video.style.display = 'block';
-    video.currentTime = 0;
-    
-    return video.play();
+
+  /* ── small helpers ─────────────────────────────────────────────────── */
+
+  async playTransitionVideo(path) {
+    const v = this.transitionVideo, src = v.querySelector('source');
+    v.style.transform = `translateY(${CONFIG.TRANSITION.OFFSET}px)`;
+    src.src = path;
+    v.load();
+    v.style.display = 'block';
+    v.currentTime = 0;
+    return v.play();
   },
-  
-  setupForwardTransition() {
-    const contactsIcon = window.iconInstances.contacts;
-    
+
+  waitForVideoEnd() {
+    return new Promise(resolve => { this.transitionVideo.onended = resolve; });
+  },
+
+  /** Stagger page children in with GSAP — call right after display:flex */
+  fadeInPageContent(page) {
+    const kids = Array.from(page.children);
+    gsap.set(kids, { opacity: 0, y: 12 });          // instant invisible
+    gsap.to(kids, {                                  // staggered reveal
+      opacity: 1, y: 0,
+      duration: CONFIG.GSAP.PAGE_CONTENT_DURATION,
+      stagger:  CONFIG.GSAP.PAGE_CONTENT_STAGGER,
+      delay:    CONFIG.GSAP.PAGE_CONTENT_DELAY,
+      ease:     'power2.out'
+    });
+  },
+
+  /** GSAP fade all icons out + add pointer-events flag */
+  fadeIconsOut() {
+    const icons = document.querySelectorAll('.icon');
+    icons.forEach(i => i.classList.add('icon-hidden'));
+    gsap.to(icons, { opacity: 0, duration: CONFIG.GSAP.ICON_FADE, ease: 'power2.in' });
+  },
+
+  /** GSAP fade all icons back in (delay in seconds) */
+  fadeIconsIn(delaySeconds = 0) {
+    const icons = document.querySelectorAll('.icon');
+    gsap.to(icons, {
+      opacity: 1,
+      duration: CONFIG.GSAP.ICON_FADE,
+      delay:    delaySeconds,
+      ease:     'power2.out',
+      onStart:  () => icons.forEach(i => i.classList.remove('icon-hidden'))
+    });
+  },
+
+  /* ── CONTACTS FORWARD ──────────────────────────────────────────────── */
+  setupContactsTransition() {
     Utils.getElement('icon-contacts').addEventListener('click', async () => {
-      if (this.isTransitioning || !contactsIcon.isClickable) return;
-      
+      if (this.isTransitioning) return;
       this.isTransitioning = true;
-      
       try {
         EyeSystem.blinkOnce();
         await Utils.wait(CONFIG.TIMING.BLINK_AFTER_TRANSITION);
         await EyeSystem.resetToCenter();
-        
-        await this.setupTransitionVideo(CONFIG.TRANSITION.FORWARD_PATH);
-        
-        setTimeout(() => {
-          document.querySelectorAll('.icon').forEach(icon => {
-            icon.classList.add('hidden');
-          });
-        }, CONFIG.TIMING.ICON_FADE_DELAY);
-        
-        await new Promise(resolve => {
-          this.transitionVideo.onended = resolve;
-        });
-        
-        this.mainContent.style.display = 'none';
-        this.contactsPage.style.display = 'flex';
-        this.transitionVideo.style.display = 'none';
-        
+
+        await this.playTransitionVideo(CONFIG.TRANSITION.CONTACTS_FORWARD);
+        setTimeout(() => this.fadeIconsOut(), CONFIG.TIMING.CONTACTS_ICON_FADE);
+        await this.waitForVideoEnd();
+
+        this.mainContent.style.display      = 'none';
+        this.transitionVideo.style.display  = 'none';
+        this.contactsPage.style.display     = 'flex';
         Utils.getElement('bgFreeze').style.display = 'block';
-        
-      } catch (error) {
-        console.error('Forward transition error:', error);
-        this.handleTransitionError(true);
-      } finally {
-        this.isTransitioning = false;
-      }
+
+        this.fadeInPageContent(this.contactsPage);
+      } catch (e) {
+        console.error('Contacts transition error:', e);
+        this.handleTransitionError('contacts');
+      } finally { this.isTransitioning = false; }
     });
   },
-  
-  setupReverseTransition(backButton) {
+
+  /* ── EDU FORWARD ───────────────────────────────────────────────────── */
+  setupEduTransition() {
+    Utils.getElement('icon-edu').addEventListener('click', async () => {
+      if (this.isTransitioning) return;
+      this.isTransitioning = true;
+      try {
+        EyeSystem.blinkOnce();
+        await Utils.wait(CONFIG.TIMING.BLINK_AFTER_TRANSITION);
+        await EyeSystem.resetToCenter();
+
+        Utils.getElement('bgFreeze').style.display = 'none';
+        gsap.to(Utils.getElement('eyeOffset'), { opacity: 0, duration: CONFIG.GSAP.EYE_FADE_FAST, ease: 'power2.in' });
+
+        this.transitionVideo.classList.add('under-icons');
+        await this.playTransitionVideo(CONFIG.TRANSITION.EDU_FORWARD);
+        setTimeout(() => this.fadeIconsOut(), CONFIG.TIMING.EDU_ICON_FADE);
+        await this.waitForVideoEnd();
+
+        this.transitionVideo.classList.remove('under-icons');
+        this.mainContent.style.display     = 'none';
+        this.transitionVideo.style.display = 'none';
+        this.eduPage.style.display         = 'flex';
+
+        this.fadeInPageContent(this.eduPage);
+      } catch (e) {
+        console.error('Edu transition error:', e);
+        this.handleTransitionError('edu');
+      } finally { this.isTransitioning = false; }
+    });
+  },
+
+  /* ── REVERSE (back buttons) ────────────────────────────────────────── */
+  setupReverseTransition(backButton, pageType) {
     backButton.addEventListener('click', async () => {
       if (this.isTransitioning) return;
-      
       this.isTransitioning = true;
-      
       try {
-        this.contactsPage.style.display = 'none';
-        Utils.getElement('bgFreeze').style.display = 'block';
-        this.mainContent.style.display = 'block';
-        
-        document.querySelectorAll('.icon').forEach(icon => {
-          icon.classList.remove('hidden');
-          icon.style.opacity = '1';
-        });
-        
-        // Reset all icon instances
-        Object.values(window.iconInstances).forEach(iconInstance => {
-          iconInstance.reset();
-        });
-        
-        const eyeOffset = Utils.getElement('eyeOffset');
-        eyeOffset.style.transition = 'none';
-        eyeOffset.style.opacity = '1';
-        void eyeOffset.offsetHeight;
-        eyeOffset.style.transition = 'opacity 0.8s ease';
-        
-        await this.setupTransitionVideo(CONFIG.TRANSITION.REVERSE_PATH);
-        
-        await new Promise(resolve => {
-          this.transitionVideo.onended = resolve;
-        });
-        
-        this.transitionVideo.style.display = 'none';
-        
-        setTimeout(() => {
-          EyeSystem.blinkOnce();
-        }, 100);
-        
-        Utils.log('✅ Reverse transition complete');
-        
-      } catch (error) {
-        console.error('Reverse transition error:', error);
-        this.handleTransitionError(false);
-      } finally {
-        this.isTransitioning = false;
-      }
+        const targetPage    = pageType === 'contacts' ? this.contactsPage : this.eduPage;
+        const reverseVideo   = pageType === 'contacts' ? CONFIG.TRANSITION.CONTACTS_REVERSE : CONFIG.TRANSITION.EDU_REVERSE;
+
+        if (reverseVideo) {
+          const video = this.transitionVideo, source = video.querySelector('source');
+          video.style.transform = `translateY(${CONFIG.TRANSITION.OFFSET}px)`;
+          source.src = reverseVideo;
+          video.load();
+          video.currentTime = 0;
+          if (pageType === 'edu') video.classList.add('under-icons');
+
+          video.style.display = 'block';
+          await video.play();
+
+          // Swap layers under the playing video
+          requestAnimationFrame(() => {
+            targetPage.style.display = 'none';
+            this.mainContent.style.display = 'block';
+            Utils.getElement('bgFreeze').style.display = 'block';
+          });
+
+          // Reset frame sequences while icons are invisible
+          Object.values(window.iconInstances).forEach(inst => inst.reset());
+
+          // Contacts: eye back immediately (video at z:999 covers it)
+          if (pageType === 'contacts') {
+            gsap.set(Utils.getElement('eyeOffset'), { opacity: 1 });
+          }
+
+          // Icons fade back in at the synced moment (convert ms → s)
+          const iconDelay = (pageType === 'edu' ? CONFIG.TIMING.EDU_REVERSE_ICON_FADE : 300) / 1000;
+          this.fadeIconsIn(iconDelay);
+
+          await this.waitForVideoEnd();
+
+          // Edu: eye back AFTER the video's eye animation finished
+          if (pageType === 'edu') {
+            gsap.to(Utils.getElement('eyeOffset'), { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_FAST, ease: 'power2.out' });
+          }
+
+          video.classList.remove('under-icons');
+          video.style.display = 'none';
+        } else {
+          // No reverse video — instant swap
+          targetPage.style.display = 'none';
+          this.mainContent.style.display = 'block';
+          Utils.getElement('bgFreeze').style.display = 'block';
+          Object.values(window.iconInstances).forEach(inst => inst.reset());
+          this.fadeIconsIn(0.3);
+          gsap.set(Utils.getElement('eyeOffset'), { opacity: 1 });
+        }
+
+        setTimeout(() => EyeSystem.blinkOnce(), 100);
+      } catch (e) {
+        console.error('Reverse transition error:', e);
+        this.handleTransitionError(null);
+      } finally { this.isTransitioning = false; }
     });
   },
-  
-  handleTransitionError(showContacts) {
+
+  /* ── ERROR RECOVERY ────────────────────────────────────────────────── */
+  handleTransitionError(pageType) {
     this.transitionVideo.style.display = 'none';
-    
-    if (showContacts) {
-      this.mainContent.style.display = 'none';
-      this.contactsPage.style.display = 'flex';
+    if (pageType === 'contacts') {
+      this.mainContent.style.display   = 'none';
+      this.contactsPage.style.display  = 'flex';
+      this.eduPage.style.display       = 'none';
+    } else if (pageType === 'edu') {
+      this.mainContent.style.display   = 'none';
+      this.eduPage.style.display       = 'flex';
+      this.contactsPage.style.display  = 'none';
     } else {
-      this.contactsPage.style.display = 'none';
-      this.mainContent.style.display = 'block';
-      Utils.getElement('eyeOffset').style.opacity = '1';
-      
-      document.querySelectorAll('.icon').forEach(icon => {
-        icon.classList.remove('hidden');
-        icon.style.opacity = '1';
-      });
+      this.contactsPage.style.display  = 'none';
+      this.eduPage.style.display       = 'none';
+      this.mainContent.style.display   = 'block';
+      Utils.getElement('bgFreeze').style.display = 'block';
+      gsap.set(Utils.getElement('eyeOffset'), { opacity: 1 });
+      Object.values(window.iconInstances).forEach(inst => inst.reset());
+      this.fadeIconsIn(0);
     }
   }
 };
 
 /* ========================================================================
-   EYE SYSTEM - MOBILE & DESKTOP TRACKING
+   EYE SYSTEM
    ======================================================================== */
 const EyeSystem = {
-  eyeMove: null,
-  eyeOffset: null,
-  blinkLid: null,
-  bgVideo: null,
-  bgFreeze: null,
-  ctx: null,
-  eyeActive: false,
-  eyeActivationTriggered: false,
-  
+  eyeMove: null, eyeOffset: null, blinkLid: null,
+  bgVideo: null, bgFreeze: null, ctx: null,
+  eyeActive: false, eyeActivationTriggered: false,
+  reflectionsMove: null,
+
   init() {
-    this.eyeMove = Utils.getElement("eyeMove");
-    this.eyeOffset = Utils.getElement("eyeOffset");
-    this.blinkLid = Utils.getElement("blinkLid");
-    this.bgVideo = Utils.getElement("bgVideo");
-    this.bgFreeze = Utils.getElement("bgFreeze");
-    this.ctx = this.bgFreeze.getContext("2d");
-    
+    this.eyeMove         = Utils.getElement('eyeMove');
+    this.eyeOffset       = Utils.getElement('eyeOffset');
+    this.blinkLid        = Utils.getElement('blinkLid');
+    this.bgVideo         = Utils.getElement('bgVideo');
+    this.bgFreeze        = Utils.getElement('bgFreeze');
+    this.reflectionsMove = Utils.getElement('reflectionsMove');
+    this.ctx             = this.bgFreeze.getContext('2d');
     this.setupVideoListeners();
-    this.setupTracking(); // Combined mouse + touch tracking
+    this.setupTracking();
     this.setupFallback();
   },
-  
+
   setupVideoListeners() {
-    this.bgVideo.addEventListener('loadeddata', () => {
-      Utils.log('🎥 Background video loaded!');
-    });
-    
     this.bgVideo.addEventListener('timeupdate', () => {
       if (this.eyeActivationTriggered || this.eyeActive) return;
-      
-      if (this.bgVideo.currentTime >= CONFIG.TIMING.EYE_ACTIVATE_TIME) {
-        this.activateEye();
-      }
+      if (this.bgVideo.currentTime >= CONFIG.TIMING.EYE_ACTIVATE_TIME) this.activateEye();
     });
-    
     this.bgVideo.addEventListener('ended', () => {
       if (this.eyeActivationTriggered || this.eyeActive) return;
       this.activateEye();
     });
   },
-  
+
   activateEye() {
     this.eyeActivationTriggered = true;
-    
-    this.bgFreeze.width = this.bgVideo.videoWidth;
+    this.bgFreeze.width  = this.bgVideo.videoWidth;
     this.bgFreeze.height = this.bgVideo.videoHeight;
-    
-    Utils.log('🖼️ Freezing at:', this.bgFreeze.width, 'x', this.bgFreeze.height);
-    
     if (this.bgFreeze.width > 0 && this.bgFreeze.height > 0) {
       try {
         this.ctx.drawImage(this.bgVideo, 0, 0, this.bgFreeze.width, this.bgFreeze.height);
-        
-        this.bgVideo.style.display = "none";
-        this.bgFreeze.style.display = "block";
-        
-        this.eyeOffset.style.opacity = "1";
+        this.bgVideo.style.display  = 'none';
+        this.bgFreeze.style.display = 'block';
+        gsap.to(this.eyeOffset, { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_ACTIVATE, ease: 'power2.out' });
         this.eyeActive = true;
-        
-        setTimeout(() => {
-          this.blinkOnce();
-        }, 100);
-        
+        setTimeout(() => this.blinkOnce(), 100);
         this.startBlinking();
         Utils.log('✅ Eye activated!');
-      } catch (error) {
-        console.error('Failed to draw video to canvas:', error);
-      }
+      } catch (e) { console.error('Failed to draw video to canvas:', e); }
     }
   },
-  
+
+  /* ── tracking — direct attribute sets, no tweening ─────────────────── */
   setupTracking() {
-    // DESKTOP: Mouse tracking
-    document.addEventListener("mousemove", (e) => {
-      if (this.eyeActive && !DeviceDetector.isTouchDevice) {
-        this.updateEyePosition(e.clientX, e.clientY);
-      }
+    document.addEventListener('mousemove', (e) => {
+      if (this.eyeActive && !DeviceDetector.isTouchDevice) this.updateEyePosition(e.clientX, e.clientY);
     });
-    
-    // MOBILE: Touch tracking
-    document.addEventListener("touchmove", (e) => {
-      if (this.eyeActive && e.touches.length > 0) {
-        const touch = e.touches[0];
-        this.updateEyePosition(touch.clientX, touch.clientY);
-      }
+    document.addEventListener('touchmove', (e) => {
+      if (this.eyeActive && e.touches.length) this.updateEyePosition(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
-    
-    // Also track single touches (tap and hold)
-    document.addEventListener("touchstart", (e) => {
-      if (this.eyeActive && e.touches.length > 0) {
-        const touch = e.touches[0];
-        this.updateEyePosition(touch.clientX, touch.clientY);
-      }
+    document.addEventListener('touchstart', (e) => {
+      if (this.eyeActive && e.touches.length) this.updateEyePosition(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
   },
-  
-  updateEyePosition(clientX, clientY) {
-    const x = (clientX / window.innerWidth  - 0.5) * 120;
-    const y = (clientY / window.innerHeight - 0.5) * 60;
-    this.eyeMove.setAttribute("transform", `translate(${x}, ${y})`);
+
+  updateEyePosition(cx, cy) {
+    const x = (cx / window.innerWidth  - 0.5) * 120;
+    const y = (cy / window.innerHeight - 0.5) * 60;
+    this.eyeMove.setAttribute('transform', `translate(${x}, ${y})`);
+    this.reflectionsMove.setAttribute('transform',
+      `translate(${x * CONFIG.EYE.REFLECTION_MOVEMENT}, ${y * CONFIG.EYE.REFLECTION_MOVEMENT})`);
   },
-  
+
   setupFallback() {
     setTimeout(() => {
       if (!this.eyeActive) {
-        console.warn('⚠️ Activating eye without background video');
-        this.eyeOffset.style.opacity = "1";
+        console.warn('⚠️ Eye fallback triggered');
+        gsap.to(this.eyeOffset, { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_ACTIVATE });
         this.eyeActive = true;
         this.startBlinking();
       }
     }, CONFIG.TIMING.EYE_FALLBACK_TIMEOUT);
   },
-  
+
+  /* ── blink — CSS keyframes, unchanged ──────────────────────────────── */
   blinkOnce() {
+    if (!this.eyeActive) return;
     this.blinkLid.style.animation = `blink ${CONFIG.TIMING.BLINK_SPEED}ms ease-in-out`;
-    this.blinkLid.addEventListener("animationend", () => {
-      this.blinkLid.style.animation = "";
-    }, { once: true });
+    this.blinkLid.addEventListener('animationend', () => { this.blinkLid.style.animation = ''; }, { once: true });
   },
-  
   blink() {
     this.blinkOnce();
-    if (Math.random() < CONFIG.EYE.DOUBLE_BLINK_CHANCE) {
+    if (Math.random() < CONFIG.EYE.DOUBLE_BLINK_CHANCE)
       setTimeout(() => this.blinkOnce(), CONFIG.TIMING.DOUBLE_BLINK_DELAY);
-    }
   },
-  
   startBlinking() {
     const loop = () => {
       this.blink();
-      const delay = CONFIG.TIMING.BLINK_MIN_DELAY + 
-                    Math.random() * (CONFIG.TIMING.BLINK_MAX_DELAY - CONFIG.TIMING.BLINK_MIN_DELAY);
-      setTimeout(loop, delay);
+      setTimeout(loop, CONFIG.TIMING.BLINK_MIN_DELAY + Math.random() * (CONFIG.TIMING.BLINK_MAX_DELAY - CONFIG.TIMING.BLINK_MIN_DELAY));
     };
     loop();
   },
-  
+
+  /* ── resetToCenter — GSAP proxy tween ──────────────────────────────── */
   resetToCenter() {
-    return new Promise((resolve) => {
-      const transformAttr = this.eyeMove.getAttribute('transform') || 'translate(0, 0)';
-      const matches = transformAttr.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
-      
-      const startX = matches ? parseFloat(matches[1]) : 0;
-      const startY = matches ? parseFloat(matches[2]) : 0;
-      
-      const startTime = performance.now();
-      
-      const animate = (currentTime) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / CONFIG.TIMING.RESET_EYE_DURATION, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        
-        const currentX = startX * (1 - eased);
-        const currentY = startY * (1 - eased);
-        
-        this.eyeMove.setAttribute('transform', `translate(${currentX}, ${currentY})`);
-        
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          resolve();
-        }
-      };
-      
-      requestAnimationFrame(animate);
+    if (!this.eyeActive) return Promise.resolve();
+
+    const attr = this.eyeMove.getAttribute('transform') || 'translate(0,0)';
+    const m    = attr.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+    const sx   = m ? parseFloat(m[1]) : 0;
+    const sy   = m ? parseFloat(m[2]) : 0;
+    if (sx === 0 && sy === 0) return Promise.resolve();
+
+    // Tween a plain proxy object; push the values to SVG attrs in onUpdate
+    const proxy = { x: sx, y: sy };
+    return new Promise(resolve => {
+      gsap.to(proxy, {
+        x: 0, y: 0,
+        duration: CONFIG.GSAP.EYE_RESET_DURATION,
+        ease: 'power3.out',
+        onUpdate: () => {
+          this.eyeMove.setAttribute('transform', `translate(${proxy.x}, ${proxy.y})`);
+          this.reflectionsMove.setAttribute('transform',
+            `translate(${proxy.x * CONFIG.EYE.REFLECTION_MOVEMENT}, ${proxy.y * CONFIG.EYE.REFLECTION_MOVEMENT})`);
+        },
+        onComplete: resolve
+      });
     });
   }
 };
 
 /* ========================================================================
-   INITIALIZATION
+   INIT
    ======================================================================== */
 document.addEventListener('DOMContentLoaded', () => {
-  // Detect device
   DeviceDetector.init();
-  
-  // Initialize preloader
   Preloader.init();
-  
-  // Initialize icon positioning
   IconPositioner.init();
-  
-  // Create icon instances
+
   window.iconInstances = {
-    art: new SequenceIcon(
-      Utils.getElement('icon-art'),
-      28, 'art', 20, 0.028,
-      CONFIG.ICON_SPEEDS.ART_FORWARD,
-      CONFIG.ICON_SPEEDS.ART_REVERSE
-    ),
-    edu: new SequenceIcon(
-      Utils.getElement('icon-edu'),
-      21, 'edu', 24, 0.025,
-      CONFIG.ICON_SPEEDS.EDU_FORWARD,
-      CONFIG.ICON_SPEEDS.EDU_REVERSE
-    ),
-    contacts: new SequenceIcon(
-      Utils.getElement('icon-contacts'),
-      30, 'contacts', 12, 0.030,
-      CONFIG.ICON_SPEEDS.CONTACTS_FORWARD,
-      CONFIG.ICON_SPEEDS.CONTACTS_REVERSE
-    ),
-    work: new SequenceIcon(
-      Utils.getElement('icon-work'),
-      29, 'work', null, 0.029,
-      null,
-      CONFIG.ICON_SPEEDS.WORK_REVERSE,
-      CONFIG.ICON_SPEEDS.WORK_LOOP
-    )
+    art:      new SequenceIcon(Utils.getElement('icon-art'),      28, 'art',      20,   0.028, CONFIG.ICON_SPEEDS.ART_FORWARD,      CONFIG.ICON_SPEEDS.ART_REVERSE),
+    edu:      new SequenceIcon(Utils.getElement('icon-edu'),      21, 'edu',      24,   0.025, CONFIG.ICON_SPEEDS.EDU_FORWARD,      CONFIG.ICON_SPEEDS.EDU_REVERSE),
+    contacts: new SequenceIcon(Utils.getElement('icon-contacts'), 30, 'contacts', 12,   0.030, CONFIG.ICON_SPEEDS.CONTACTS_FORWARD, CONFIG.ICON_SPEEDS.CONTACTS_REVERSE),
+    work:     new SequenceIcon(Utils.getElement('icon-work'),     29, 'work',     null, 0.029, null,                                CONFIG.ICON_SPEEDS.WORK_REVERSE,  CONFIG.ICON_SPEEDS.WORK_LOOP)
   };
-  
-  // Initialize transition manager
+
   TransitionManager.init();
-  
-  // Initialize eye system
   EyeSystem.init();
-  
   Utils.log('✅ Application initialized!');
 });
 </script>
-
 </body>
 </html>
