@@ -388,7 +388,11 @@ const CONFIG = {
     CRITICAL: [
       'assets/sprites/White.png','assets/sprites/Iris.png','assets/sprites/mask.png','assets/sprites/reflections.png',
       'assets/sprites/icon-art.png','assets/sprites/icon-contacts.png',
-      'assets/sprites/icon-edu.png','assets/sprites/icon-work.png'
+      'assets/sprites/icon-edu.png','assets/sprites/icon-work.png',
+      'assets/transitions/contacts/transition.webm',
+      'assets/transitions/contacts/reverse.webm',
+      'assets/transitions/edu/edu_transition.webm',
+      'assets/transitions/edu/edu_reverse.webm'
     ]
   },
 
@@ -467,9 +471,13 @@ const Preloader = {
     const loadingProgress = Utils.getElement('loadingProgress');
     const container = Utils.getElement('container');
 
-    // Preload only images (no videos in critical assets anymore)
+    // Preload images and videos
     CONFIG.ASSETS.CRITICAL.forEach(src => {
-      this.preloadImage(src);
+      if (src.endsWith('.webm') || src.endsWith('.mp4')) {
+        this.preloadVideo(src);
+      } else {
+        this.preloadImage(src);
+      }
     });
 
     this.updateProgress = () => {
@@ -508,6 +516,21 @@ const Preloader = {
       this.updateProgress(); // Still count it to avoid infinite loading
     };
     i.src = src;
+  },
+
+  preloadVideo(src) {
+    const v = document.createElement('video');
+    v.preload = 'auto';
+    v.onloadeddata = () => {
+      console.log(`✅ Video loaded: ${src}`);
+      this.updateProgress();
+    };
+    v.onerror = () => {
+      console.warn(`Failed to load video: ${src}`);
+      this.updateProgress(); // Still count it to avoid infinite loading
+    };
+    v.src = src;
+    v.load();
   }
 };
 
@@ -685,6 +708,14 @@ const TransitionManager = {
     this.contactsPage    = Utils.getElement('contactsPage');
     this.eduPage         = Utils.getElement('eduPage');
     this.mainContent     = Utils.getElement('mainContent');
+    
+    console.log('🎬 [TRANSITION MANAGER] Initialized with paths:', {
+      CONTACTS_FORWARD: CONFIG.TRANSITION.CONTACTS_FORWARD,
+      CONTACTS_REVERSE: CONFIG.TRANSITION.CONTACTS_REVERSE,
+      EDU_FORWARD: CONFIG.TRANSITION.EDU_FORWARD,
+      EDU_REVERSE: CONFIG.TRANSITION.EDU_REVERSE
+    });
+    
     this.setupContactsTransition();
     this.setupEduTransition();
     this.setupReverseTransition(Utils.getElement('backButtonContacts'), 'contacts');
@@ -692,12 +723,45 @@ const TransitionManager = {
   },
 
   async playTransitionVideo(path) {
+    console.log('🎬 [TRANSITION] Attempting to load video:', path);
     const v = this.transitionVideo, src = v.querySelector('source');
+    
     v.style.transform = `translateY(${CONFIG.TRANSITION.OFFSET}px)`;
     src.src = path;
+    
+    console.log('🎬 [TRANSITION] Video element src set to:', src.src);
+    console.log('🎬 [TRANSITION] Full resolved URL:', new URL(src.src, window.location.href).href);
+    
+    // Add error listener
+    v.onerror = (e) => {
+      console.error('❌ [TRANSITION] Video error:', e);
+      console.error('❌ [TRANSITION] Video error details:', {
+        error: v.error,
+        networkState: v.networkState,
+        readyState: v.readyState
+      });
+    };
+    
+    src.onerror = (e) => {
+      console.error('❌ [TRANSITION] Source error:', e);
+    };
+    
+    v.onloadstart = () => console.log('⏳ [TRANSITION] Video load started');
+    v.onloadedmetadata = () => console.log('✅ [TRANSITION] Video metadata loaded');
+    v.oncanplay = () => console.log('✅ [TRANSITION] Video can play');
+    
     v.load();
     v.style.display = 'block';
     v.currentTime = 0;
+    
+    try {
+      await v.play();
+      console.log('▶️ [TRANSITION] Video playing successfully');
+    } catch (error) {
+      console.error('❌ [TRANSITION] Play failed:', error);
+      throw error;
+    }
+    
     return v.play();
   },
 
@@ -736,8 +800,13 @@ const TransitionManager = {
 
   setupContactsTransition() {
     Utils.getElement('icon-contacts').addEventListener('click', async () => {
-      if (this.isTransitioning) return;
+      console.log('👆 [CONTACTS] Icon clicked');
+      if (this.isTransitioning) {
+        console.log('⚠️ [CONTACTS] Already transitioning, ignoring click');
+        return;
+      }
       this.isTransitioning = true;
+      console.log('🚀 [CONTACTS] Starting transition');
       try {
         EyeSystem.blinkOnce();
         await Utils.wait(CONFIG.TIMING.BLINK_AFTER_TRANSITION);
@@ -762,8 +831,13 @@ const TransitionManager = {
 
   setupEduTransition() {
     Utils.getElement('icon-edu').addEventListener('click', async () => {
-      if (this.isTransitioning) return;
+      console.log('👆 [EDU] Icon clicked');
+      if (this.isTransitioning) {
+        console.log('⚠️ [EDU] Already transitioning, ignoring click');
+        return;
+      }
       this.isTransitioning = true;
+      console.log('🚀 [EDU] Starting transition');
       try {
         EyeSystem.blinkOnce();
         await Utils.wait(CONFIG.TIMING.BLINK_AFTER_TRANSITION);
