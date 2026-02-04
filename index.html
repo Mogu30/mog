@@ -165,12 +165,10 @@ svg {
 }
 
 /* ========================================================================
-   ICONS  — opacity managed by GSAP; only filter keeps a CSS transition
+   SPRITE SHEET ICONS
    ======================================================================== */
 .icon {
   position: absolute;
-  width: 180px;
-  height: 180px;
   transform-origin: center center;
   z-index: var(--z-icons);
   pointer-events: auto;
@@ -178,27 +176,53 @@ svg {
   filter: drop-shadow(0 0 0px rgba(0,0,0,0));
   opacity: 1;
   transition: filter var(--transition-fast) ease;
-  will-change: transform;
+  will-change: background-position, transform;
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
+  background-repeat: no-repeat;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
+
 /* Flag class — pointer-events only; GSAP handles the opacity */
 .icon.icon-hidden { pointer-events: none; }
-
-.icon img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
-  pointer-events: none;
-  -webkit-user-drag: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
 .icon.touching { filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+
+/* Individual icon sprite settings - base size 180px like original */
+#icon-art {
+  width: 180px;
+  height: 169px; /* maintain aspect ratio: 180 * (425/453) */
+  background-image: url('sprites/art_sprite.png');
+  background-size: 8640px 169px; /* scale proportionally: 21744 * (180/453) */
+  background-position: 0 0;
+}
+
+#icon-contacts {
+  width: 180px;
+  height: 203px; /* maintain aspect ratio: 180 * (436/386) */
+  background-image: url('sprites/contacts_sprite.png');
+  background-size: 5400px 203px; /* scale proportionally: 11580 * (180/386) */
+  background-position: 0 0;
+}
+
+#icon-edu {
+  width: 180px;
+  height: 126px; /* maintain aspect ratio: 180 * (320/456) */
+  background-image: url('sprites/edu_sprite.png');
+  background-size: 9000px 126px; /* scale proportionally: 22800 * (180/456) */
+  background-position: 0 0;
+}
+
+#icon-work {
+  width: 180px;
+  height: 226px; /* maintain aspect ratio: 180 * (397/316) */
+  background-image: url('sprites/work_sprite.png');
+  background-size: 5220px 226px; /* scale proportionally: 9164 * (180/316) */
+  background-position: 0 0;
+}
 
 /* ========================================================================
    PAGE CONTENT STYLES
@@ -249,16 +273,16 @@ svg {
 
 <div id="container">
   <video id="bgVideo" autoplay muted playsinline webkit-playsinline>
-    <source src="mog.mov">
+    <source src="mog.webm" type="video/webm">
   </video>
   <canvas id="bgFreeze"></canvas>
 
   <!-- Home -->
   <div id="mainContent">
-    <div class="icon" id="icon-art"      role="button" aria-label="Art Portfolio" tabindex="0"><img src="frames/art/Frame_00000.png"      alt="Art Portfolio Icon"></div>
-    <div class="icon" id="icon-edu"      role="button" aria-label="Education"     tabindex="0"><img src="frames/edu/Frame_00000.png"      alt="Education Icon"></div>
-    <div class="icon" id="icon-contacts" role="button" aria-label="Contacts"      tabindex="0"><img src="frames/contacts/Frame_00000.png" alt="Contacts Icon"></div>
-    <div class="icon" id="icon-work"     role="button" aria-label="Work"          tabindex="0"><img src="frames/work/Frame_00000.png"     alt="Work Icon"></div>
+    <div class="icon" id="icon-art"      role="button" aria-label="Art Portfolio" tabindex="0"></div>
+    <div class="icon" id="icon-edu"      role="button" aria-label="Education"     tabindex="0"></div>
+    <div class="icon" id="icon-contacts" role="button" aria-label="Contacts"      tabindex="0"></div>
+    <div class="icon" id="icon-work"     role="button" aria-label="Work"          tabindex="0"></div>
 
     <svg viewBox="0 0 1920 1080" aria-hidden="true">
       <defs>
@@ -326,8 +350,9 @@ const DeviceDetector = {
 const CONFIG = {
   ASSETS: {
     CRITICAL: [
-      'mog.mov','White.png','Iris.png','mask.png','reflections.png',
-      'transition.webm','reverse.webm','edu_transition.webm','edu_reverse.webm'
+      'White.png','Iris.png','mask.png','reflections.png',
+      'sprites/art_sprite.png','sprites/contacts_sprite.png',
+      'sprites/edu_sprite.png','sprites/work_sprite.png'
     ]
   },
 
@@ -338,6 +363,7 @@ const CONFIG = {
     BLINK_AFTER_TRANSITION: 150,
     EYE_ACTIVATE_TIME:      4.037,  // seconds into bgVideo
     LOADING_DELAY:          500,
+    LOADING_TIMEOUT:        5000,   // Force load after 5 seconds
     BLINK_SPEED:            150,
     DOUBLE_BLINK_DELAY:     180,
     BLINK_MIN_DELAY:        2400,
@@ -345,20 +371,13 @@ const CONFIG = {
     EYE_FALLBACK_TIMEOUT:   8000
   },
 
-  ICON_SPEEDS: {
-    ART_FORWARD: 2, ART_REVERSE: 0.3,
-    EDU_FORWARD: 0.3, EDU_REVERSE: 0.3,
-    CONTACTS_FORWARD: 0.85, CONTACTS_REVERSE: 0.3,
-    WORK_LOOP: 0.2, WORK_REVERSE: 0.3
-  },
-
   LAYOUT: { DESIGN_WIDTH: 1920, DESIGN_HEIGHT: 1080 },
 
   ICON_SETTINGS: {
     "icon-art":      { x: 220,  y: 810, scale: 2.5  },
     "icon-edu":      { x: 230,  y: 225, scale: 2.5  },
-    "icon-work":     { x: 1690, y: 235, scale: 2.25 },
-    "icon-contacts": { x: 1690, y: 810, scale: 2.35 }
+    "icon-work":     { x: 1690, y: 235, scale: 1.77 },
+    "icon-contacts": { x: 1685, y: 810, scale: 2.2 }
   },
 
   TRANSITION: {
@@ -400,21 +419,21 @@ const Utils = {
 };
 
 /* ========================================================================
-   PRELOADER
+   PRELOADER - FIXED VERSION
    ======================================================================== */
 const Preloader = {
   loadedCount: 0,
   totalAssets: CONFIG.ASSETS.CRITICAL.length,
+  forceLoadTriggered: false,
 
   init() {
     const loadingScreen = Utils.getElement('loadingScreen');
     const loadingProgress = Utils.getElement('loadingProgress');
     const container = Utils.getElement('container');
 
+    // Preload only images (no videos in critical assets anymore)
     CONFIG.ASSETS.CRITICAL.forEach(src => {
-      const ext = src.split('.').pop();
-      if (['mp4','mov','webm'].includes(ext)) this.preloadVideo(src);
-      else this.preloadImage(src);
+      this.preloadImage(src);
     });
 
     this.updateProgress = () => {
@@ -422,25 +441,35 @@ const Preloader = {
       const pct = Math.round((this.loadedCount / this.totalAssets) * 100);
       loadingProgress.textContent = `Loading assets... ${pct}%`;
 
-      if (this.loadedCount === this.totalAssets) {
-        setTimeout(() => {
-          loadingScreen.style.display = 'none';
-          gsap.to(container, { opacity: 1, duration: CONFIG.GSAP.CONTAINER_FADE, ease: 'power2.out' });
-        }, CONFIG.TIMING.LOADING_DELAY);
+      if (this.loadedCount === this.totalAssets && !this.forceLoadTriggered) {
+        this.completeLoading(loadingScreen, container);
       }
     };
+
+    // Force load after timeout
+    setTimeout(() => {
+      if (!this.forceLoadTriggered) {
+        console.warn('⚠️ Loading timeout - forcing page load');
+        this.forceLoadTriggered = true;
+        this.completeLoading(loadingScreen, container);
+      }
+    }, CONFIG.TIMING.LOADING_TIMEOUT);
   },
 
-  preloadVideo(src) {
-    const v = document.createElement('video');
-    v.onloadeddata = () => this.updateProgress();
-    v.onerror      = () => this.updateProgress();
-    v.src = src;
+  completeLoading(loadingScreen, container) {
+    setTimeout(() => {
+      loadingScreen.style.display = 'none';
+      gsap.to(container, { opacity: 1, duration: CONFIG.GSAP.CONTAINER_FADE, ease: 'power2.out' });
+    }, CONFIG.TIMING.LOADING_DELAY);
   },
+
   preloadImage(src) {
     const i = new Image();
     i.onload = () => this.updateProgress();
-    i.onerror = () => this.updateProgress();
+    i.onerror = () => {
+      console.warn(`Failed to load: ${src}`);
+      this.updateProgress(); // Still count it to avoid infinite loading
+    };
     i.src = src;
   }
 };
@@ -469,46 +498,32 @@ const IconPositioner = {
 };
 
 /* ========================================================================
-   SEQUENCE ICON  — frame-swapping, untouched by GSAP migration
+   SPRITE SHEET ICON - SIMPLIFIED VERSION
    ======================================================================== */
-class SequenceIcon {
-  constructor(element, frameCount, folder, holdFrame = null, speed = 0.04, forwardSpeed = 0.5, reverseSpeed = 0.3, loopSpeed = 0.2) {
-    this.element      = element;
-    this.img          = element.querySelector('img');
-    this.frameCount   = frameCount;
-    this.folder       = folder;
-    this.holdFrame    = holdFrame;
-    this.speed        = speed;
-    this.forwardSpeed = forwardSpeed;
-    this.reverseSpeed = reverseSpeed;
-    this.loopSpeed    = loopSpeed;
+class SpriteSheetIcon {
+  constructor(element, frameCount, frameWidth, frameHeight, spriteWidth, holdFrame = null, speeds = {}) {
+    this.element = element;
+    this.frameCount = frameCount;
+    this.frameWidth = frameWidth;
+    this.frameHeight = frameHeight;
+    this.spriteWidth = spriteWidth;
+    this.holdFrame = holdFrame;
+    
+    // Animation state
     this.currentFrame = 0;
-    this.targetFrame  = 0;
-    this.isHovering   = false;
-    this.isHolding    = false;
-    this.isTouching   = false;
+    this.targetFrame = 0;
+    this.isHovering = false;
+    this.isHolding = false;
+    this.isTouching = false;
+    
+    // SIMPLIFIED SPEEDS - just forward, reverse, loop
+    this.forwardSpeed = speeds.forwardSpeed || 0.5;
+    this.reverseSpeed = speeds.reverseSpeed || 0.3;
+    this.loopSpeed = speeds.loopSpeed || 0.2;
+    
     this.animationFrame = null;
-    this.preloadFrames();
+    
     this.setupListeners();
-    this.animate();
-  }
-
-  preloadFrames() {
-    this.frames = [];
-    for (let i = 0; i < this.frameCount; i++) {
-      const img = new Image();
-      img.src = `frames/${this.folder}/Frame_${String(i).padStart(5,'0')}.png`;
-      this.frames.push(img);
-    }
-  }
-
-  reset() {
-    if (this.animationFrame) { cancelAnimationFrame(this.animationFrame); this.animationFrame = null; }
-    this.isHovering = this.isHolding = this.isTouching = false;
-    this.targetFrame = this.currentFrame = 0;
-    this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
-    this.element.classList.remove('touching');
-    if (this.frames[0] && this.frames[0].complete) this.img.src = this.frames[0].src;
     this.animate();
   }
 
@@ -517,61 +532,104 @@ class SequenceIcon {
       if (DeviceDetector.isTouchDevice) return;
       this.isHovering = true;
       this.element.style.filter = 'drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))';
-      if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
+      if (this.holdFrame !== null) {
+        this.targetFrame = this.holdFrame;
+      }
     });
+
     this.element.addEventListener('mouseleave', () => {
       if (DeviceDetector.isTouchDevice) return;
-      this.isHovering = this.isHolding = false;
+      this.isHovering = false;
+      this.isHolding = false;
+      this.targetFrame = 0;
       this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
     });
+
     this.element.addEventListener('touchstart', (e) => {
       e.preventDefault();
       this.isTouching = this.isHovering = true;
       this.element.classList.add('touching');
       this.element.style.filter = 'drop-shadow(0 0 10px rgba(0,0,0,1)) drop-shadow(0 0 18px rgba(0,0,0,1)) drop-shadow(0 0 28px rgba(0,0,0,1))';
-      if (this.holdFrame !== null) this.targetFrame = this.holdFrame;
+      if (this.holdFrame !== null) {
+        this.targetFrame = this.holdFrame;
+      }
     }, { passive: false });
+
     this.element.addEventListener('touchend', (e) => {
       e.preventDefault();
       this.element.click();
       this.isHovering = this.isHolding = this.isTouching = false;
+      this.targetFrame = 0;
       this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
       this.element.classList.remove('touching');
     }, { passive: false });
+
     this.element.addEventListener('touchcancel', () => {
       this.isHovering = this.isHolding = this.isTouching = false;
+      this.targetFrame = 0;
       this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
       this.element.classList.remove('touching');
     });
   }
 
+  updateBackgroundPosition() {
+    const frameIndex = Math.floor(this.currentFrame);
+    const xPos = frameIndex * this.frameWidth;
+    this.element.style.backgroundPosition = `-${xPos}px 0`;
+  }
+
   animate() {
     if (this.isHovering) {
+      // Forward animation
       if (this.holdFrame === null) {
-        this.currentFrame += this.speed * this.frameCount * this.loopSpeed;
-        if (this.currentFrame >= this.frameCount - 1) this.currentFrame = 0;
+        // Loop continuously (work icon)
+        this.currentFrame += this.loopSpeed;
+        if (this.currentFrame >= this.frameCount - 1) {
+          this.currentFrame = 0;
+        }
       } else {
+        // Animate to hold frame (art, contacts, edu)
         if (!this.isHolding && Math.abs(this.currentFrame - this.holdFrame) < 0.5) {
           this.isHolding = true;
           this.currentFrame = this.holdFrame;
-          this.targetFrame  = this.holdFrame;
+          this.targetFrame = this.holdFrame;
         }
+        
         if (!this.isHolding) {
-          const dist = Math.abs(this.targetFrame - this.currentFrame);
-          const spd  = dist < 2 ? 0.5 : this.speed * this.forwardSpeed;
-          this.currentFrame += (this.targetFrame - this.currentFrame) * spd;
-          if (dist < 0.1) this.currentFrame = this.targetFrame;
+          const distance = Math.abs(this.targetFrame - this.currentFrame);
+          const speed = distance < 2 ? 0.3 : this.forwardSpeed;
+          this.currentFrame += (this.targetFrame - this.currentFrame) * speed;
+          
+          if (distance < 0.1) {
+            this.currentFrame = this.targetFrame;
+          }
         }
       }
     } else {
+      // Reverse animation
       if (this.currentFrame > 0) {
-        this.currentFrame -= this.speed * this.frameCount * this.reverseSpeed;
-        if (this.currentFrame < 0) this.currentFrame = 0;
+        this.currentFrame -= this.reverseSpeed;
+        if (this.currentFrame < 0) {
+          this.currentFrame = 0;
+        }
       }
     }
-    const idx = Math.round(this.currentFrame);
-    if (this.frames[idx] && this.frames[idx].complete) this.img.src = this.frames[idx].src;
+
+    this.updateBackgroundPosition();
     this.animationFrame = requestAnimationFrame(() => this.animate());
+  }
+
+  reset() {
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.isHovering = this.isHolding = this.isTouching = false;
+    this.targetFrame = this.currentFrame = 0;
+    this.element.style.filter = 'drop-shadow(0 0 0px rgba(0,0,0,0))';
+    this.element.classList.remove('touching');
+    this.updateBackgroundPosition();
+    this.animate();
   }
 }
 
@@ -596,8 +654,6 @@ const TransitionManager = {
     this.setupReverseTransition(Utils.getElement('backButtonEdu'),      'edu');
   },
 
-  /* ── small helpers ─────────────────────────────────────────────────── */
-
   async playTransitionVideo(path) {
     const v = this.transitionVideo, src = v.querySelector('source');
     v.style.transform = `translateY(${CONFIG.TRANSITION.OFFSET}px)`;
@@ -612,11 +668,10 @@ const TransitionManager = {
     return new Promise(resolve => { this.transitionVideo.onended = resolve; });
   },
 
-  /** Stagger page children in with GSAP — call right after display:flex */
   fadeInPageContent(page) {
     const kids = Array.from(page.children);
-    gsap.set(kids, { opacity: 0, y: 12 });          // instant invisible
-    gsap.to(kids, {                                  // staggered reveal
+    gsap.set(kids, { opacity: 0, y: 12 });
+    gsap.to(kids, {
       opacity: 1, y: 0,
       duration: CONFIG.GSAP.PAGE_CONTENT_DURATION,
       stagger:  CONFIG.GSAP.PAGE_CONTENT_STAGGER,
@@ -625,14 +680,12 @@ const TransitionManager = {
     });
   },
 
-  /** GSAP fade all icons out + add pointer-events flag */
   fadeIconsOut() {
     const icons = document.querySelectorAll('.icon');
     icons.forEach(i => i.classList.add('icon-hidden'));
     gsap.to(icons, { opacity: 0, duration: CONFIG.GSAP.ICON_FADE, ease: 'power2.in' });
   },
 
-  /** GSAP fade all icons back in (delay in seconds) */
   fadeIconsIn(delaySeconds = 0) {
     const icons = document.querySelectorAll('.icon');
     gsap.to(icons, {
@@ -644,7 +697,6 @@ const TransitionManager = {
     });
   },
 
-  /* ── CONTACTS FORWARD ──────────────────────────────────────────────── */
   setupContactsTransition() {
     Utils.getElement('icon-contacts').addEventListener('click', async () => {
       if (this.isTransitioning) return;
@@ -671,7 +723,6 @@ const TransitionManager = {
     });
   },
 
-  /* ── EDU FORWARD ───────────────────────────────────────────────────── */
   setupEduTransition() {
     Utils.getElement('icon-edu').addEventListener('click', async () => {
       if (this.isTransitioning) return;
@@ -702,7 +753,6 @@ const TransitionManager = {
     });
   },
 
-  /* ── REVERSE (back buttons) ────────────────────────────────────────── */
   setupReverseTransition(backButton, pageType) {
     backButton.addEventListener('click', async () => {
       if (this.isTransitioning) return;
@@ -722,28 +772,23 @@ const TransitionManager = {
           video.style.display = 'block';
           await video.play();
 
-          // Swap layers under the playing video
           requestAnimationFrame(() => {
             targetPage.style.display = 'none';
             this.mainContent.style.display = 'block';
             Utils.getElement('bgFreeze').style.display = 'block';
           });
 
-          // Reset frame sequences while icons are invisible
           Object.values(window.iconInstances).forEach(inst => inst.reset());
 
-          // Contacts: eye back immediately (video at z:999 covers it)
           if (pageType === 'contacts') {
             gsap.set(Utils.getElement('eyeOffset'), { opacity: 1 });
           }
 
-          // Icons fade back in at the synced moment (convert ms → s)
           const iconDelay = (pageType === 'edu' ? CONFIG.TIMING.EDU_REVERSE_ICON_FADE : 300) / 1000;
           this.fadeIconsIn(iconDelay);
 
           await this.waitForVideoEnd();
 
-          // Edu: eye back AFTER the video's eye animation finished
           if (pageType === 'edu') {
             gsap.to(Utils.getElement('eyeOffset'), { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_FAST, ease: 'power2.out' });
           }
@@ -751,7 +796,6 @@ const TransitionManager = {
           video.classList.remove('under-icons');
           video.style.display = 'none';
         } else {
-          // No reverse video — instant swap
           targetPage.style.display = 'none';
           this.mainContent.style.display = 'block';
           Utils.getElement('bgFreeze').style.display = 'block';
@@ -768,7 +812,6 @@ const TransitionManager = {
     });
   },
 
-  /* ── ERROR RECOVERY ────────────────────────────────────────────────── */
   handleTransitionError(pageType) {
     this.transitionVideo.style.display = 'none';
     if (pageType === 'contacts') {
@@ -842,7 +885,6 @@ const EyeSystem = {
     }
   },
 
-  /* ── tracking — direct attribute sets, no tweening ─────────────────── */
   setupTracking() {
     document.addEventListener('mousemove', (e) => {
       if (this.eyeActive && !DeviceDetector.isTouchDevice) this.updateEyePosition(e.clientX, e.clientY);
@@ -874,17 +916,18 @@ const EyeSystem = {
     }, CONFIG.TIMING.EYE_FALLBACK_TIMEOUT);
   },
 
-  /* ── blink — CSS keyframes, unchanged ──────────────────────────────── */
   blinkOnce() {
     if (!this.eyeActive) return;
     this.blinkLid.style.animation = `blink ${CONFIG.TIMING.BLINK_SPEED}ms ease-in-out`;
     this.blinkLid.addEventListener('animationend', () => { this.blinkLid.style.animation = ''; }, { once: true });
   },
+  
   blink() {
     this.blinkOnce();
     if (Math.random() < CONFIG.EYE.DOUBLE_BLINK_CHANCE)
       setTimeout(() => this.blinkOnce(), CONFIG.TIMING.DOUBLE_BLINK_DELAY);
   },
+  
   startBlinking() {
     const loop = () => {
       this.blink();
@@ -893,7 +936,6 @@ const EyeSystem = {
     loop();
   },
 
-  /* ── resetToCenter — GSAP proxy tween ──────────────────────────────── */
   resetToCenter() {
     if (!this.eyeActive) return Promise.resolve();
 
@@ -903,7 +945,6 @@ const EyeSystem = {
     const sy   = m ? parseFloat(m[2]) : 0;
     if (sx === 0 && sy === 0) return Promise.resolve();
 
-    // Tween a plain proxy object; push the values to SVG attrs in onUpdate
     const proxy = { x: sx, y: sy };
     return new Promise(resolve => {
       gsap.to(proxy, {
@@ -929,16 +970,52 @@ document.addEventListener('DOMContentLoaded', () => {
   Preloader.init();
   IconPositioner.init();
 
+  // Create sprite sheet icons with SIMPLIFIED SPEEDS
   window.iconInstances = {
-    art:      new SequenceIcon(Utils.getElement('icon-art'),      28, 'art',      20,   0.028, CONFIG.ICON_SPEEDS.ART_FORWARD,      CONFIG.ICON_SPEEDS.ART_REVERSE),
-    edu:      new SequenceIcon(Utils.getElement('icon-edu'),      21, 'edu',      24,   0.025, CONFIG.ICON_SPEEDS.EDU_FORWARD,      CONFIG.ICON_SPEEDS.EDU_REVERSE),
-    contacts: new SequenceIcon(Utils.getElement('icon-contacts'), 30, 'contacts', 12,   0.030, CONFIG.ICON_SPEEDS.CONTACTS_FORWARD, CONFIG.ICON_SPEEDS.CONTACTS_REVERSE),
-    work:     new SequenceIcon(Utils.getElement('icon-work'),     29, 'work',     null, 0.029, null,                                CONFIG.ICON_SPEEDS.WORK_REVERSE,  CONFIG.ICON_SPEEDS.WORK_LOOP)
+    art: new SpriteSheetIcon(
+      Utils.getElement('icon-art'),
+      48,      // frameCount
+      180,     // frameWidth (scaled to 180px base)
+      169,     // frameHeight (scaled proportionally)
+      8640,    // spriteWidth (scaled proportionally)
+      18,      // holdFrame (adjust to your preference)
+      { forwardSpeed: 0.1, reverseSpeed: 0.3 }
+    ),
+    
+    contacts: new SpriteSheetIcon(
+      Utils.getElement('icon-contacts'),
+      30,      // frameCount
+      180,     // frameWidth (scaled to 180px base)
+      203,     // frameHeight (scaled proportionally)
+      5400,    // spriteWidth (scaled proportionally)
+      17,      // holdFrame (adjust to your preference)
+      { forwardSpeed: 0.03, reverseSpeed: 0.3 }
+    ),
+    
+    edu: new SpriteSheetIcon(
+      Utils.getElement('icon-edu'),
+      50,      // frameCount
+      180,     // frameWidth (scaled to 180px base)
+      126,     // frameHeight (scaled proportionally)
+      9000,    // spriteWidth (scaled proportionally)
+      23,      // holdFrame (adjust to your preference)
+      { forwardSpeed: 0.01, reverseSpeed: 0.3 }
+    ),
+    
+    work: new SpriteSheetIcon(
+      Utils.getElement('icon-work'),
+      29,      // frameCount
+      180,     // frameWidth (scaled to 180px base)
+      226,     // frameHeight (scaled proportionally)
+      5220,    // spriteWidth (scaled proportionally)
+      null,    // no holdFrame - loops continuously
+      { loopSpeed: 0.2, reverseSpeed: 0.3 }
+    )
   };
 
   TransitionManager.init();
   EyeSystem.init();
-  Utils.log('✅ Application initialized!');
+  Utils.log('✅ Application initialized with sprite sheets!');
 });
 </script>
 </body>
