@@ -234,9 +234,9 @@ svg {
 
 #icon-edu {
   width: 180px;
-  height: 126px; /* maintain aspect ratio: 180 * (320/456) */
+  height: 105px; /* maintain aspect ratio: 180 * (320/456) */
   background-image: url('assets/sprites/icon-edu.png');
-  background-size: 9000px 126px; /* scale proportionally: 22800 * (180/456) */
+  background-size: 13136px 105px; /* scale proportionally: 40150 * (180/456) */
   background-position: 0 0;
 }
 
@@ -416,7 +416,7 @@ const CONFIG = {
 
   ICON_SETTINGS: {
     "icon-art":      { x: 220,  y: 810, scale: 2.5  },
-    "icon-edu":      { x: 230,  y: 225, scale: 2.5  },
+    "icon-edu":      { x: 225,  y: 225, scale: 3  },
     "icon-work":     { x: 1690, y: 235, scale: 1.77 },
     "icon-contacts": { x: 1685, y: 810, scale: 2.2 }
   },
@@ -1267,12 +1267,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     edu: new SpriteSheetIcon(
       Utils.getElement('icon-edu'),
-      50,      // frameCount
+      73,      // frameCount
       180,     // frameWidth (scaled to 180px base)
-      126,     // frameHeight (scaled proportionally)
-      9000,    // spriteWidth (scaled proportionally)
-      23,      // holdFrame (adjust to your preference)
-      { forwardSpeed: 0.01, reverseSpeed: 0.3 }
+      105,     // frameHeight (scaled proportionally)
+      13136,    // spriteWidth (scaled proportionally)
+      45,      // holdFrame (adjust to your preference)
+      { forwardSpeed: 0.035, reverseSpeed: 0.5 }
     ),
     
     work: new SpriteSheetIcon(
