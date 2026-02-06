@@ -63,8 +63,20 @@ html, body {
   font-family: Arial, sans-serif;
   pointer-events: none;
 }
-#loadingScreen h2 { font-size: 2rem; margin-bottom: var(--space-sm); pointer-events: auto; }
-#loadingProgress { font-size: 1.2rem; opacity: 0.7; pointer-events: auto; }
+#loadingScreen h2 {
+  font-size: 2rem;
+  margin-bottom: var(--space-sm);
+  pointer-events: auto;
+  font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: black;
+  text-shadow: -1px -1px 0 #ff0000, 1px -1px 0 #ff0000, -1px 1px 0 #ff0000, 1px 1px 0 #ff0000;
+  animation: smokeOut 1s ease-in-out infinite alternate;
+}
+@keyframes smokeOut {
+  100% { opacity: 0.08; filter: blur(3px); letter-spacing: 1px; }
+}
 
 /* Comet animation SVG */
 #loadingSvg {
@@ -75,8 +87,7 @@ html, body {
   z-index: 0;
   pointer-events: none;
 }
-#loadingScreen h2,
-#loadingProgress {
+#loadingScreen h2 {
   position: relative;
   z-index: 1;
 }
@@ -409,8 +420,7 @@ svg {
     </g>
   </svg>
   
-  <h2>Loading...</h2>
-  <p id="loadingProgress">Preparing assets...</p>
+  <h2>LOADING...</h2>
 </div>
 
 <!-- Fullscreen Wall Container (independent of main container) -->
@@ -425,7 +435,7 @@ svg {
 </div>
 
 <div id="container">
-  <video id="bgVideo" autoplay muted playsinline webkit-playsinline>
+  <video id="bgVideo" muted playsinline webkit-playsinline>
     <source src="assets/background/mog.webm" type="video/webm">
   </video>
   <canvas id="bgFreeze"></canvas>
@@ -585,10 +595,10 @@ const Preloader = {
   loadedCount: 0,
   totalAssets: CONFIG.ASSETS.CRITICAL.length,
   forceLoadTriggered: false,
+  loadingComplete: false,
 
   init() {
     const loadingScreen = Utils.getElement('loadingScreen');
-    const loadingProgress = Utils.getElement('loadingProgress');
     const container = Utils.getElement('container');
 
     // Preload images and videos
@@ -603,7 +613,7 @@ const Preloader = {
     this.updateProgress = () => {
       this.loadedCount++;
       const pct = Math.round((this.loadedCount / this.totalAssets) * 100);
-      loadingProgress.textContent = `Loading assets... ${pct}%`;
+      console.log(`Loading assets... ${pct}%`);
 
       if (this.loadedCount === this.totalAssets && !this.forceLoadTriggered) {
         this.forceLoadTriggered = true; // Prevent double-call race condition
@@ -627,30 +637,33 @@ const Preloader = {
     await TransitionManager.initializeWall();
     console.log('✅ [PRELOAD] Wall ready!');
 
-    // Then fade in the container behind the comets
+    // Fade out loading text first
+    gsap.to(loadingScreen.querySelector('h2'), {
+      opacity: 0,
+      duration: 0.2,
+      ease: 'power2.inOut'
+    });
+    
+    // Fade out comets
+    gsap.to('#loadingSvg', { 
+      opacity: 0, 
+      duration: 0.3, 
+      ease: 'power2.inOut'
+    });
+    
+    // Then fade in the container after text is gone
     gsap.to(container, {
       opacity: 1,
       duration: CONFIG.GSAP.CONTAINER_FADE,
+      delay: 0.25,
       ease: 'power2.inOut',
       onComplete: () => {
-        // Then fade out the comets and text
-        gsap.to('#loadingSvg', { 
-          opacity: 0, 
-          duration: 1.5, 
-          ease: 'power2.inOut'
-        });
-        
-        gsap.to([loadingScreen.querySelector('h2'), loadingScreen.querySelector('#loadingProgress')], {
-          opacity: 0,
-          duration: 0.8,
-          ease: 'power2.inOut',
-          onComplete: () => {
-            LoadingCometAnimation.stop();
-            loadingScreen.style.display = 'none';
-            // Start the background video once comets have faded
-            Utils.getElement('bgVideo').play();
-          }
-        });
+        LoadingCometAnimation.stop();
+        loadingScreen.style.display = 'none';
+        // Start the background video once loading is done
+        Utils.getElement('bgVideo').play();
+        // Mark loading as complete so eye can activate
+        Preloader.loadingComplete = true;
       }
     });
   },
@@ -1819,10 +1832,13 @@ const EyeSystem = {
 
   setupVideoListeners() {
     this.bgVideo.addEventListener('timeupdate', () => {
+      // Don't activate eye if loading hasn't completed yet
+      if (!Preloader.loadingComplete) return;
       if (this.eyeActivationTriggered || this.eyeActive) return;
       if (this.bgVideo.currentTime >= CONFIG.TIMING.EYE_ACTIVATE_TIME) this.activateEye();
     });
     this.bgVideo.addEventListener('ended', () => {
+      if (!Preloader.loadingComplete) return;
       if (this.eyeActivationTriggered || this.eyeActive) return;
       this.activateEye();
     });
@@ -1867,14 +1883,26 @@ const EyeSystem = {
   },
 
   setupFallback() {
-    setTimeout(() => {
-      if (!this.eyeActive) {
-        console.warn('⚠️ Eye fallback triggered');
-        gsap.to(this.eyeOffset, { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_ACTIVATE });
-        this.eyeActive = true;
-        this.startBlinking();
+    const checkFallback = () => {
+      // If loading isn't complete yet, check again later
+      if (!Preloader.loadingComplete) {
+        setTimeout(checkFallback, 1000);
+        return;
       }
-    }, CONFIG.TIMING.EYE_FALLBACK_TIMEOUT);
+      // If eye is already active, no need for fallback
+      if (this.eyeActive) return;
+      
+      // Wait for the normal eye activation time after loading, then trigger fallback
+      setTimeout(() => {
+        if (!this.eyeActive) {
+          console.warn('⚠️ Eye fallback triggered');
+          gsap.to(this.eyeOffset, { opacity: 1, duration: CONFIG.GSAP.EYE_FADE_ACTIVATE });
+          this.eyeActive = true;
+          this.startBlinking();
+        }
+      }, CONFIG.TIMING.EYE_FALLBACK_TIMEOUT);
+    };
+    checkFallback();
   },
 
   blinkOnce() {
