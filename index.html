@@ -1126,17 +1126,19 @@ const TransitionManager = {
         backBtn.style.visibility = 'visible';
         clickText.style.visibility = 'visible';
         
-        // Ensure back button starts at opacity 0 and fades in
-        gsap.set(backBtn, { opacity: 0 });
-        console.log('🔘 Back button visibility set to:', backBtn.style.visibility, backBtn);
+        // Show wall immediately at full opacity (underneath home page)
+        gsap.set(wallFullscreen, { opacity: 1 });
+        gsap.set([backBtn, clickText], { opacity: 0 });
         
         await new Promise(resolve => {
+          // Fade out home elements to reveal wall underneath
           gsap.to([eyeOffset, ...icons, bg], {
             opacity: 0,
             duration: 0.6,
             ease: 'power2.in'
           });
-          gsap.to([wallFullscreen, clickText, backBtn], {
+          // Fade in UI elements on top of wall
+          gsap.to([clickText, backBtn], {
             opacity: 1,
             duration: 0.6,
             ease: 'power2.in',
