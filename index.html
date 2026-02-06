@@ -118,6 +118,111 @@ html, body {
 #bgFreeze { display: none; }
 
 /* ========================================================================
+   FULLSCREEN WALL (independent layer, not in container)
+   ======================================================================== */
+#wall-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 500;
+  opacity: 0;
+  pointer-events: none;
+  background: black;
+}
+#wall-fullscreen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+#wall-click-text {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+  color: white;
+  font-family: Arial, sans-serif;
+  animation: fadeInOut 2s infinite;
+  pointer-events: none;
+  z-index: 9999 !important; /* High z-index to be above WebGL canvas */
+  visibility: hidden;
+  isolation: isolate;
+}
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+#backButtonWall {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  padding: 0.8rem 1.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid white;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+  z-index: 10000 !important; /* Very high to ensure on top of WebGL canvas */
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  /* Prevent any transform/filter that could affect stacking */
+  isolation: isolate;
+}
+#backButtonWall:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+#wall-content {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: black;
+  color: white;
+  z-index: 499;
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  overflow-y: auto;
+}
+#wall-content.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#wall-content-text {
+  max-width: 800px;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  font-family: Arial, sans-serif;
+  margin-bottom: 2rem;
+}
+#backButtonContent {
+  padding: 0.8rem 1.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid white;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+#backButtonContent:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+
+/* ========================================================================
    CONTENT LAYERS
    ======================================================================== */
 #mainContent {
@@ -308,8 +413,19 @@ svg {
   <p id="loadingProgress">Preparing assets...</p>
 </div>
 
+<!-- Fullscreen Wall Container (independent of main container) -->
+<div id="wall-fullscreen"></div>
+<div id="wall-click-text">click</div>
+<button id="backButtonWall">← Back</button>
+
+<!-- Wall Content Area (revealed after knockdown) -->
+<div id="wall-content">
+  <div id="wall-content-text">work exp goes here</div>
+  <button id="backButtonContent" class="backBtn">← Back to Home</button>
+</div>
+
 <div id="container">
-  <video id="bgVideo" muted playsinline webkit-playsinline>
+  <video id="bgVideo" autoplay muted playsinline webkit-playsinline>
     <source src="assets/background/mog.webm" type="video/webm">
   </video>
   <canvas id="bgFreeze"></canvas>
@@ -360,6 +476,8 @@ svg {
     <button class="backButton" id="backButtonEdu">← Back to Home</button>
   </div>
 
+  <!-- Work Page moved to #wall-fullscreen (independent of container) -->
+
   <!-- Transition Video -->
   <video id="transitionVideo" muted playsinline webkit-playsinline>
     <source src="" type="video/webm">
@@ -393,7 +511,8 @@ const CONFIG = {
       'assets/transitions/contacts/transition.webm',
       'assets/transitions/contacts/reverse.webm',
       'assets/transitions/edu/edu_transition.webm',
-      'assets/transitions/edu/edu_reverse.webm'
+      'assets/transitions/edu/edu_reverse.webm',
+      'mog.png'
     ]
   },
 
@@ -487,6 +606,7 @@ const Preloader = {
       loadingProgress.textContent = `Loading assets... ${pct}%`;
 
       if (this.loadedCount === this.totalAssets && !this.forceLoadTriggered) {
+        this.forceLoadTriggered = true; // Prevent double-call race condition
         this.completeLoading(loadingScreen, container);
       }
     };
@@ -501,8 +621,13 @@ const Preloader = {
     }, CONFIG.TIMING.LOADING_TIMEOUT);
   },
 
-  completeLoading(loadingScreen, container) {
-    // First fade in the container behind the comets
+  async completeLoading(loadingScreen, container) {
+    // Initialize wall FIRST (during loading) so it's ready when needed
+    console.log('🎮 [PRELOAD] Starting wall initialization...');
+    await TransitionManager.initializeWall();
+    console.log('✅ [PRELOAD] Wall ready!');
+
+    // Then fade in the container behind the comets
     gsap.to(container, {
       opacity: 1,
       duration: CONFIG.GSAP.CONTAINER_FADE,
@@ -724,6 +849,7 @@ const TransitionManager = {
   contactsPage: null,
   eduPage: null,
   mainContent: null,
+  wallInstance: null,
 
   init() {
     this.transitionVideo = Utils.getElement('transitionVideo');
@@ -740,8 +866,94 @@ const TransitionManager = {
     
     this.setupContactsTransition();
     this.setupEduTransition();
+    this.setupWorkTransition();
     this.setupReverseTransition(Utils.getElement('backButtonContacts'), 'contacts');
     this.setupReverseTransition(Utils.getElement('backButtonEdu'),      'edu');
+    // Wall back button is set up in initializeWall() - not here
+    this.setupContentBackButton();
+  },
+
+  setupContentBackButton() {
+    const backButton = Utils.getElement('backButtonContent');
+    if (!backButton) return;
+    
+    backButton.addEventListener('click', async () => {
+      if (this.isTransitioning) return;
+      this.isTransitioning = true;
+      try {
+        // Fade out content
+        const wallContent = Utils.getElement('wall-content');
+        await new Promise(resolve => {
+          gsap.to(wallContent, {
+            opacity: 0,
+            duration: 0.6,
+            ease: 'power2.in',
+            onComplete: resolve
+          });
+        });
+
+        wallContent.classList.remove('visible');
+
+        // Show home page
+        this.mainContent.style.display = 'flex';
+        const bg = Utils.getElement('bgVideo');
+        const eyeOffset = Utils.getElement('eyeOffset');
+        const icons = document.querySelectorAll('.icon');
+        
+        bg.style.display = 'block';
+        gsap.set([bg, eyeOffset, ...icons], { opacity: 0 });
+        
+        await new Promise(resolve => {
+          gsap.to([bg, eyeOffset, ...icons], {
+            opacity: 1,
+            duration: 0.6,
+            ease: 'power2.out',
+            onComplete: resolve
+          });
+          icons.forEach(i => i.classList.remove('icon-hidden'));
+        });
+
+        // Reset icon animations
+        setTimeout(() => {
+          Object.values(window.iconInstances).forEach(inst => inst.reset());
+        }, 100);
+
+        console.log('✅ [WALL CONTENT] Back to home');
+      } catch (e) {
+        console.error('Content back transition error:', e);
+      } finally { this.isTransitioning = false; }
+    });
+  },
+
+  // NOTE: setupWorkBackButton removed - was dead code for unused #backButtonWork element
+  // The actual wall back button (#backButtonWall) is handled in initializeWall()
+
+  loadLibrary(url, globalName) {
+    return new Promise((resolve, reject) => {
+      // Check if library is already loaded
+      if (window[globalName]) {
+        console.log(`✅ Library already cached: ${globalName}`);
+        resolve(window[globalName]);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = url;
+      script.onload = () => {
+        console.log(`✅ Script loaded: ${url}`);
+        setTimeout(() => {
+          const lib = window[globalName];
+          if (lib) {
+            console.log(`✅ Library available as window.${globalName}`);
+            resolve(lib);
+          } else {
+            reject(new Error(`Library ${globalName} not found after loading ${url}`));
+          }
+        }, 100);
+      };
+      script.onerror = () => reject(new Error(`Failed to load ${url}`));
+      document.head.appendChild(script);
+    });
   },
 
   async playTransitionVideo(path) {
@@ -884,6 +1096,620 @@ const TransitionManager = {
         this.handleTransitionError('edu');
       } finally { this.isTransitioning = false; }
     });
+  },
+
+  setupWorkTransition() {
+    Utils.getElement('icon-work').addEventListener('click', async () => {
+      console.log('👆 [WORK] Icon clicked');
+      if (this.isTransitioning) {
+        console.log('⚠️ [WORK] Already transitioning, ignoring click');
+        return;
+      }
+      this.isTransitioning = true;
+      console.log('🚀 [WORK] Starting transition');
+      try {
+        EyeSystem.blinkOnce();
+        await Utils.wait(CONFIG.TIMING.BLINK_AFTER_TRANSITION);
+        await EyeSystem.resetToCenter();
+
+        // Fade out home elements + fade in wall simultaneously
+        const eyeOffset = Utils.getElement('eyeOffset');
+        const icons = document.querySelectorAll('.icon');
+        const bg = Utils.getElement('bgVideo');
+        const wallFullscreen = Utils.getElement('wall-fullscreen');
+        const clickText = Utils.getElement('wall-click-text');
+        const backBtn = Utils.getElement('backButtonWall');
+        
+        // Enable wall interactions (visibility only - physics stays off until animation completes)
+        wallFullscreen.style.pointerEvents = 'auto';
+        backBtn.style.pointerEvents = 'auto';
+        backBtn.style.visibility = 'visible';
+        clickText.style.visibility = 'visible';
+        
+        // Ensure back button starts at opacity 0 and fades in
+        gsap.set(backBtn, { opacity: 0 });
+        console.log('🔘 Back button visibility set to:', backBtn.style.visibility, backBtn);
+        
+        await new Promise(resolve => {
+          gsap.to([eyeOffset, ...icons, bg], {
+            opacity: 0,
+            duration: 0.6,
+            ease: 'power2.in'
+          });
+          gsap.to([wallFullscreen, clickText, backBtn], {
+            opacity: 1,
+            duration: 0.6,
+            ease: 'power2.in',
+            onComplete: () => {
+              // NOW enable wall physics after animation is done
+              console.log('🔍 [WORK] Checking wallInstance:', this.wallInstance);
+              console.log('🔍 [WORK] setActive function:', this.wallInstance?.setActive);
+              if (this.wallInstance?.setActive) {
+                this.wallInstance.setActive(true);
+                console.log('✅ Wall physics now active');
+              } else {
+                console.error('❌ wallInstance.setActive not found!');
+              }
+              resolve();
+            }
+          });
+          icons.forEach(i => i.classList.add('icon-hidden'));
+        });
+
+        this.mainContent.style.display = 'none';
+        bg.style.display = 'none';
+
+        console.log('✅ [WORK] Work page ready');
+      } catch (e) {
+        console.error('Work transition error:', e);
+        this.handleTransitionError('work');
+      } finally { this.isTransitioning = false; }
+    });
+  },
+
+  async drawGridTransition() {
+    const cols = 16;
+    const rows = 9;
+    const gridOverlay = document.createElement('canvas');
+    gridOverlay.width = window.innerWidth;
+    gridOverlay.height = window.innerHeight;
+    gridOverlay.style.position = 'fixed';
+    gridOverlay.style.top = '0';
+    gridOverlay.style.left = '0';
+    gridOverlay.style.zIndex = '999';
+    gridOverlay.style.cursor = 'pointer';
+    document.body.appendChild(gridOverlay);
+
+    const ctx = gridOverlay.getContext('2d');
+    const cellWidth = gridOverlay.width / cols;
+    const cellHeight = gridOverlay.height / rows;
+
+    // Animate grid drawing
+    const totalCells = cols * rows;
+    let drawnCells = 0;
+    const drawSpeed = 8; // cells per frame
+
+    return new Promise((resolve) => {
+      const animate = () => {
+        ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+
+        // Draw cells that are currently being animated
+        for (let i = 0; i < drawnCells && i < totalCells; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = col * cellWidth;
+          const y = row * cellHeight;
+
+          ctx.strokeRect(x, y, cellWidth, cellHeight);
+        }
+
+        drawnCells += drawSpeed;
+
+        if (drawnCells < totalCells) {
+          requestAnimationFrame(animate);
+        } else {
+          // Grid fully drawn, fade it out with the background
+          gsap.to(gridOverlay, {
+            opacity: 0,
+            duration: 1,
+            ease: 'power2.in',
+            onComplete: () => {
+              document.body.removeChild(gridOverlay);
+              resolve();
+            }
+          });
+        }
+      };
+      animate();
+    });
+  },
+
+  async initializeWall() {
+    // Prevent double initialization
+    if (this.wallInstance) {
+      console.warn('⚠️ [WALL] Already initialized, skipping');
+      return;
+    }
+    
+    console.log('🎮 [WALL] Initializing THREE.js wall...');
+    const wallContainer = Utils.getElement('wall-fullscreen');
+    
+    // Dynamically import the ES6 modules (same as WALL.html uses)
+    const THREE = await import('https://unpkg.com/three@0.152.2/build/three.module.js');
+    const CANNON = await import('https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js');
+    
+    console.log('✅ Libraries loaded via dynamic import');
+    
+    // Scene setup
+    const scene = new THREE.Scene();
+    const aspect = window.innerWidth / window.innerHeight;
+    const frustumHeight = 27.20;
+    const frustumWidth = frustumHeight * aspect;
+    
+    const camera = new THREE.OrthographicCamera(
+      -frustumWidth / 2, frustumWidth / 2,
+      frustumHeight / 2, -frustumHeight / 2,
+      0.1, 1000
+    );
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.setClearColor(0x000000, 1);
+    wallContainer.appendChild(renderer.domElement);
+    
+    // Ensure canvas stays below UI elements
+    renderer.domElement.style.zIndex = '1';
+    
+    console.log('🎥 Renderer initialized and appended to container');
+    
+    scene.add(new THREE.AmbientLight(0x888888));
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 10, 10);
+    scene.add(light);
+
+    // Create text behind the wall (visible when wall is knocked down)
+    const textCanvas = document.createElement('canvas');
+    textCanvas.width = 1024;
+    textCanvas.height = 512;
+    const textCtx = textCanvas.getContext('2d');
+    textCtx.fillStyle = 'black';
+    textCtx.fillRect(0, 0, textCanvas.width, textCanvas.height);
+    textCtx.fillStyle = 'white';
+    textCtx.font = 'bold 60px Arial';
+    textCtx.textAlign = 'center';
+    textCtx.textBaseline = 'middle';
+    textCtx.fillText('work exp goes here', textCanvas.width / 2, textCanvas.height / 2);
+    
+    const textTexture = new THREE.CanvasTexture(textCanvas);
+    const textMat = new THREE.MeshBasicMaterial({ map: textTexture });
+    const textGeo = new THREE.PlaneGeometry(30, 8, 1, 1);
+    const textMesh = new THREE.Mesh(textGeo, textMat);
+    textMesh.position.set(0, 13.5, -10); // Centered at wall height, behind the wall
+    scene.add(textMesh);
+    console.log('📝 Text mesh added at position:', textMesh.position);
+
+
+    // Physics world - exactly like WALL.html
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0) });
+    world.solver.iterations = 20;
+
+    const cubeMaterial = new CANNON.Material('cube');
+    const floorMaterial = new CANNON.Material('floor');
+
+    const glueContactMaterial = new CANNON.ContactMaterial(cubeMaterial, floorMaterial, {
+      friction: 0.8,
+      restitution: 0.05
+    });
+    world.addContactMaterial(glueContactMaterial);
+
+    const cubeToCuteMaterial = new CANNON.ContactMaterial(cubeMaterial, cubeMaterial, {
+      friction: 0.8,
+      restitution: 0.05
+    });
+    world.addContactMaterial(cubeToCuteMaterial);
+
+    // Track all wall blocks
+    const objects = [];
+
+    // Floor - exactly like WALL.html
+    const floorGeo = new THREE.BoxGeometry(50, 1, 50);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.position.y = -0.5;
+    scene.add(floorMesh);
+
+    const floorShape = new CANNON.Box(new CANNON.Vec3(25, 0.5, 25));
+    const floorBody = new CANNON.Body({ mass: 0, material: floorMaterial });
+    floorBody.position.y = -0.5;
+    floorBody.addShape(floorShape);
+    world.addBody(floorBody);
+
+    // Wall setup - exactly like WALL.html
+    const wallRows = 9;
+    const wallCols = 16;
+    const cubeSize = 3;
+
+    const wallLoaded = new Promise((resolve, reject) => {
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load('assets/background/mog.png', (baseTexture) => {
+        console.log('📸 Texture loaded, creating wall cubes...');
+        try {
+          // Create cubes with mosaic texture
+          for (let y = 0; y < wallRows; y++) {
+            for (let x = 0; x < wallCols; x++) {
+              const geo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+              
+              // Create a custom canvas texture for this cube's section
+              const canvas = document.createElement('canvas');
+              canvas.width = 256;
+              canvas.height = 256;
+              const ctx = canvas.getContext('2d');
+              
+              // Draw the corresponding section of the mosaic
+              const imgWidth = baseTexture.image.width;
+              const imgHeight = baseTexture.image.height;
+              
+              const srcX = (x / wallCols) * imgWidth;
+              const srcY = ((wallRows - 1 - y) / wallRows) * imgHeight;
+              const srcW = imgWidth / wallCols;
+              const srcH = imgHeight / wallRows;
+              
+              ctx.drawImage(baseTexture.image, srcX, srcY, srcW, srcH, 0, 0, 256, 256);
+              
+              const texture = new THREE.CanvasTexture(canvas);
+              texture.colorSpace = THREE.SRGBColorSpace;
+              const mat = new THREE.MeshBasicMaterial({ map: texture });
+              const mesh = new THREE.Mesh(geo, mat);
+              mesh.position.set((x - (wallCols / 2)) * cubeSize, y * cubeSize + cubeSize / 2, -(cubeSize / 2));
+              scene.add(mesh);
+
+              const boxShape = new CANNON.Box(new CANNON.Vec3(cubeSize / 2, cubeSize / 2, cubeSize / 2));
+              const body = new CANNON.Body({ mass: 1 });
+              body.position.set((x - (wallCols / 2)) * cubeSize, y * cubeSize + cubeSize / 2, -(cubeSize / 2));
+              body.addShape(boxShape);
+              body.material = cubeMaterial;
+              world.addBody(body);
+
+              objects.push({ mesh: mesh, body: body });
+            }
+          }
+          console.log('🧱 Wall created with', objects.length, 'cubes');
+          resolve();
+        } catch (e) {
+          console.error('❌ Error creating wall:', e);
+          reject(e);
+        }
+      }, undefined, (error) => {
+        console.error('❌ Failed to load texture:', error);
+        reject(error);
+      });
+    });
+
+    await wallLoaded;
+
+    camera.position.z = 10.01;
+    camera.position.y = 13.61;
+    camera.position.x = -1.42;
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let selectedBody = null;
+    let dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    let dragPoint = new THREE.Vector3();
+
+    // Handle resize
+    const onWindowResize = () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      const aspect = window.innerWidth / window.innerHeight;
+      const frustumHeight = 27.20;
+      const frustumWidth = frustumHeight * aspect;
+      camera.left = -frustumWidth / 2;
+      camera.right = frustumWidth / 2;
+      camera.top = frustumHeight / 2;
+      camera.bottom = -frustumHeight / 2;
+      camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', onWindowResize, false);
+
+    // Mouse down - select cube for dragging - exactly like WALL.html
+    document.addEventListener('mousedown', (event) => {
+      // Only interact when wall is active
+      if (!wallActive) {
+        console.log('🚫 [WALL] mousedown ignored - wallActive is', wallActive);
+        return;
+      }
+      console.log('👆 [WALL] mousedown - wallActive is', wallActive);
+      
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      
+      const intersects = raycaster.intersectObjects(scene.children);
+
+      for (let intersection of intersects) {
+        const clickedMesh = intersection.object;
+        const objectData = objects.find(obj => obj.mesh === clickedMesh);
+        
+        if (objectData) {
+          selectedBody = objectData.body;
+          dragPlane.setFromNormalAndCoplanarPoint(
+            camera.position.clone().normalize(),
+            selectedBody.position
+          );
+          raycaster.ray.intersectPlane(dragPlane, dragPoint);
+          break;
+        }
+      }
+    }, false);
+
+    // Mouse move - drag cube - exactly like WALL.html
+    document.addEventListener('mousemove', (event) => {
+      if (!selectedBody || !wallActive) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      raycaster.ray.intersectPlane(dragPlane, dragPoint);
+
+      const force = dragPoint.clone().sub(selectedBody.position).multiplyScalar(50);
+      selectedBody.velocity.copy(force);
+    }, false);
+
+    // Mouse up - release cube - exactly like WALL.html
+    document.addEventListener('mouseup', (event) => {
+      selectedBody = null;
+    }, false);
+
+    // Click - apply impulse - exactly like WALL.html
+    document.addEventListener('click', (event) => {
+      // Only interact when wall is active
+      if (!wallActive) {
+        console.log('🚫 [WALL] click ignored - wallActive is', wallActive);
+        return;
+      }
+      
+      // Don't apply impulse if clicking UI elements
+      if (event.target.id === 'backButtonWall' || event.target.id === 'wall-click-text') {
+        return;
+      }
+      
+      console.log('👆 [WALL] click - applying impulse');
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      
+      const intersects = raycaster.intersectObjects(scene.children);
+
+      for (let intersection of intersects) {
+        const clickedMesh = intersection.object;
+        const objectData = objects.find(obj => obj.mesh === clickedMesh);
+        
+        if (objectData) {
+          const impulse = new CANNON.Vec3(Math.random() * 8 - 4, Math.random() * 6 + 10, Math.random() * 8 - 4);
+          objectData.body.applyImpulse(impulse, objectData.body.position);
+          break;
+        }
+      }
+    }, false);
+
+    // Store initial body states for reset BEFORE animation starts
+    console.log('📦 Storing initial states for', objects.length, 'objects');
+    const initialStates = objects.map(obj => ({
+      position: obj.body.position.clone(),
+      quaternion: obj.body.quaternion.clone()
+    }));
+
+    // Flag to pause physics during reset animation
+    let isResetting = false;
+    
+    // Flag to track if wall is currently active/shown - prevents click propagation issues
+    let wallActive = false;
+
+    // Animation loop - physics only runs when wall is active and not resetting
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Only run physics when wall is active AND not resetting
+      if (wallActive && !isResetting) {
+        world.step(1 / 60);
+
+        for (const { mesh, body } of objects) {
+          mesh.position.copy(body.position);
+          mesh.quaternion.copy(body.quaternion);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    console.log('▶️ Starting animation loop...');
+    animate();
+
+    // Wall is preloaded but hidden - pointer events disabled until work transition
+    wallContainer.style.pointerEvents = 'none';
+    const clickText = Utils.getElement('wall-click-text');
+    const backBtn = Utils.getElement('backButtonWall');
+    // Keep UI hidden initially - will be shown when entering work page
+    clickText.style.visibility = 'hidden';
+    backBtn.style.visibility = 'hidden';
+    backBtn.style.pointerEvents = 'none';
+
+    // Store wall instance with reset method BEFORE setting up button
+    const RESET_DURATION = 1.5; // seconds - adjustable
+
+    this.wallInstance = {
+      renderer, scene, camera, objects, world, CANNON,
+      setActive: (active) => { 
+        console.log('🎯 [WALL] setActive called with:', active, '(was:', wallActive, ')');
+        wallActive = active; 
+        console.log('🎯 [WALL] wallActive now:', wallActive);
+      },
+      resetPhysics: () => {
+        console.log('🔄 Resetting physics bodies...');
+        objects.forEach((obj, i) => {
+          const state = initialStates[i];
+          obj.body.position.copy(state.position);
+          obj.body.quaternion.copy(state.quaternion);
+          obj.body.velocity.set(0, 0, 0);
+          obj.body.angularVelocity.set(0, 0, 0);
+          obj.mesh.position.copy(obj.body.position);
+          obj.mesh.quaternion.copy(obj.body.quaternion);
+        });
+      },
+      // Animated reset - smoothly moves cubes back to original positions
+      animateReset: () => {
+        return new Promise(resolve => {
+          console.log('🎬 Animating cubes back to wall...', objects.length, 'objects');
+          console.log('📦 Initial states:', initialStates.length);
+          
+          // PAUSE physics - let GSAP control meshes
+          isResetting = true;
+          
+          // Stop all body movement
+          objects.forEach(obj => {
+            obj.body.velocity.set(0, 0, 0);
+            obj.body.angularVelocity.set(0, 0, 0);
+            obj.body.sleep();
+          });
+          
+          // Animate each mesh back to original position using GSAP
+          const timeline = gsap.timeline({
+            onComplete: () => {
+              // Restore physics bodies to exact positions
+              objects.forEach((obj, i) => {
+                const state = initialStates[i];
+                obj.body.position.copy(state.position);
+                obj.body.quaternion.copy(state.quaternion);
+                obj.body.velocity.set(0, 0, 0);
+                obj.body.angularVelocity.set(0, 0, 0);
+                obj.body.wakeUp();
+                obj.mesh.position.copy(obj.body.position);
+                obj.mesh.quaternion.copy(obj.body.quaternion);
+              });
+              // RESUME physics
+              isResetting = false;
+              console.log('✅ Cube reset animation complete');
+              resolve();
+            }
+          });
+          
+          // Animate all meshes positions
+          objects.forEach((obj, i) => {
+            const target = initialStates[i];
+            timeline.to(obj.mesh.position, {
+              x: target.position.x,
+              y: target.position.y,
+              z: target.position.z,
+              duration: RESET_DURATION,
+              ease: 'power2.inOut'
+            }, 0);
+            timeline.to(obj.mesh.quaternion, {
+              x: target.quaternion.x,
+              y: target.quaternion.y,
+              z: target.quaternion.z,
+              w: target.quaternion.w,
+              duration: RESET_DURATION,
+              ease: 'power2.inOut'
+            }, 0);
+          });
+        });
+      }
+    };
+
+    // Setup back button - use arrow function to preserve 'this' context
+    const handleWallBackClick = async () => {
+      console.log('🔙 [BACK BUTTON] Click detected!'); // DEBUG
+      if (TransitionManager.isTransitioning) {
+        console.log('🔙 [BACK BUTTON] Blocked - already transitioning');
+        return;
+      }
+      TransitionManager.isTransitioning = true;
+      try {
+        const wallFullscreen = Utils.getElement('wall-fullscreen');
+        const clickTextEl = Utils.getElement('wall-click-text');
+        const backBtnEl = Utils.getElement('backButtonWall');
+        
+        // Deactivate wall physics immediately to prevent further interaction
+        wallActive = false;
+        
+        // First: fade out back button and click text
+        await new Promise(resolve => {
+          gsap.to([backBtnEl, clickTextEl], {
+            opacity: 0,
+            duration: 0.3,
+            ease: 'power2.in',
+            onComplete: () => {
+              backBtnEl.style.visibility = 'hidden';
+              clickTextEl.style.visibility = 'hidden';
+              resolve();
+            }
+          });
+        });
+
+        // Second: animate cubes back to original positions
+        console.log('🔄 [WALL EXIT] Animating reset');
+        await TransitionManager.wallInstance.animateReset();
+        
+        // Brief pause to show completed wall before fading
+        await new Promise(r => setTimeout(r, 300));
+        
+        // Third: fade home page ON TOP of wall (don't fade wall out)
+        TransitionManager.mainContent.style.display = 'flex';
+        const bg = Utils.getElement('bgVideo');
+        const eyeOffset = Utils.getElement('eyeOffset');
+        const icons = document.querySelectorAll('.icon');
+        
+        bg.style.display = 'block';
+        gsap.set([bg, eyeOffset, ...icons], { opacity: 0 });
+        
+        await new Promise(resolve => {
+          gsap.to([bg, eyeOffset, ...icons], {
+            opacity: 1,
+            duration: 0.6,
+            ease: 'power2.out',
+            onComplete: resolve
+          });
+          icons.forEach(i => i.classList.remove('icon-hidden'));
+        });
+
+        // NOW hide the wall (it's behind home page anyway)
+        gsap.set(wallFullscreen, { opacity: 0 });
+        wallFullscreen.style.pointerEvents = 'none';
+
+        setTimeout(() => {
+          Object.values(window.iconInstances).forEach(inst => inst.reset());
+        }, 100);
+
+        console.log('✅ [WALL EXIT] Back to home from wall');
+      } catch (e) {
+        console.error('Wall back transition error:', e);
+      } finally { TransitionManager.isTransitioning = false; }
+    };
+
+    backBtn.addEventListener('click', handleWallBackClick);
+
+    // DEBUG: Track any style changes to the back button
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'style') {
+          const opacity = backBtn.style.opacity;
+          const visibility = backBtn.style.visibility;
+          console.log('🔍 [BUTTON STYLE CHANGED]', { opacity, visibility, trace: new Error().stack });
+        }
+      });
+    });
+    observer.observe(backBtn, { attributes: true, attributeFilter: ['style'] });
+
+    console.log('✅ [WALL] Wall fully initialized and running!');
+    console.log('🔍 [WALL] this.wallInstance:', this.wallInstance);
+    console.log('🔍 [WALL] TransitionManager.wallInstance:', TransitionManager.wallInstance);
   },
 
   setupReverseTransition(backButton, pageType) {
@@ -1244,47 +2070,35 @@ document.addEventListener('DOMContentLoaded', () => {
   IconPositioner.init();
 
   // Create sprite sheet icons with SIMPLIFIED SPEEDS
-  window.iconInstances = {
-    art: new SpriteSheetIcon(
-      Utils.getElement('icon-art'),
-      48,      // frameCount
-      180,     // frameWidth (scaled to 180px base)
-      169,     // frameHeight (scaled proportionally)
-      8640,    // spriteWidth (scaled proportionally)
-      18,      // holdFrame (adjust to your preference)
-      { forwardSpeed: 0.1, reverseSpeed: 0.3 }
-    ),
-    
-    contacts: new SpriteSheetIcon(
-      Utils.getElement('icon-contacts'),
-      30,      // frameCount
-      180,     // frameWidth (scaled to 180px base)
-      203,     // frameHeight (scaled proportionally)
-      5400,    // spriteWidth (scaled proportionally)
-      17,      // holdFrame (adjust to your preference)
-      { forwardSpeed: 0.03, reverseSpeed: 0.3 }
-    ),
-    
-    edu: new SpriteSheetIcon(
-      Utils.getElement('icon-edu'),
-      73,      // frameCount
-      180,     // frameWidth (scaled to 180px base)
-      105,     // frameHeight (scaled proportionally)
-      13136,    // spriteWidth (scaled proportionally)
-      45,      // holdFrame (adjust to your preference)
-      { forwardSpeed: 0.035, reverseSpeed: 0.5 }
-    ),
-    
-    work: new SpriteSheetIcon(
-      Utils.getElement('icon-work'),
-      29,      // frameCount
-      180,     // frameWidth (scaled to 180px base)
-      226,     // frameHeight (scaled proportionally)
-      5220,    // spriteWidth (scaled proportionally)
-      null,    // no holdFrame - loops continuously
-      { loopSpeed: 0.2, reverseSpeed: 0.3 }
-    )
-  };
+  window.iconInstances = {};
+  const iconIds = ['art', 'contacts', 'edu', 'work'];
+  
+  iconIds.forEach(id => {
+    try {
+      const el = Utils.getElement(`icon-${id}`);
+      if (!el) {
+        console.error(`\u274c Icon element not found: icon-${id}`);
+        return;
+      }
+      console.log(`✅ Found icon-${id}:`, el);
+      
+      // Create icon instance based on ID
+      if (id === 'art') {
+        window.iconInstances.art = new SpriteSheetIcon(el, 48, 180, 169, 8640, 18, { forwardSpeed: 0.1, reverseSpeed: 0.3 });
+      } else if (id === 'contacts') {
+        window.iconInstances.contacts = new SpriteSheetIcon(el, 30, 180, 203, 5400, 17, { forwardSpeed: 0.03, reverseSpeed: 0.3 });
+      } else if (id === 'edu') {
+        window.iconInstances.edu = new SpriteSheetIcon(el, 73, 180, 105, 13136, 45, { forwardSpeed: 0.035, reverseSpeed: 0.5 });
+      } else if (id === 'work') {
+        window.iconInstances.work = new SpriteSheetIcon(el, 29, 180, 226, 5220, null, { loopSpeed: 0.2, reverseSpeed: 0.3 });
+      }
+      console.log(`\u2714\ufe0f Icon ${id} created successfully`);
+    } catch (e) {
+      console.error(`\u274c Error creating icon ${id}:`, e);
+    }
+  });
+
+  console.log('✅ All icon instances created:', window.iconInstances);
 
   TransitionManager.init();
   EyeSystem.init();
@@ -1293,3 +2107,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
