@@ -2337,7 +2337,7 @@ const ContactsEyeSystem = {
   activeHoverPattern: null,
   eyeCache: { open: null, closed: [], openRed: null, closedRed: [], openRainbow: [], closedRainbow: [] },
   
-  // Easter egg state
+  
   lastEnterTime: 0,
   easterEggInput: null,
   easterEggBuffer: '',
@@ -2589,7 +2589,7 @@ const ContactsEyeSystem = {
       if (e.key === 'Enter') {
         const now = Date.now();
         if (now - this.lastEnterTime < 300) {
-          // Double-tap detected - show/focus input
+         
           this.easterEggInput.style.opacity = '1';
           this.easterEggInput.focus();
           this.easterEggBuffer = '';
@@ -2623,7 +2623,7 @@ const ContactsEyeSystem = {
       text-transform: uppercase;
     `;
     
-    // Simple hash function to hide secret words
+    
     const hashCode = (s) => {
       let h = 0;
       for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
@@ -2634,11 +2634,11 @@ const ContactsEyeSystem = {
       this.easterEggBuffer = e.target.value.toUpperCase();
       const h = hashCode(this.easterEggBuffer);
       
-      if (h === 65245) { // secret activate code
+      if (h === 2022740) { 
         this.rainbowMode = true;
         input.style.borderColor = 'hsl(' + this.rainbowHue + ', 100%, 50%)';
         input.style.boxShadow = '0 0 20px hsl(' + this.rainbowHue + ', 100%, 50%)';
-      } else if (h === 76517) { // secret deactivate code
+      } else if (h === 76517) { 
         this.rainbowMode = false;
         input.style.borderColor = '#666';
         input.style.boxShadow = 'none';
