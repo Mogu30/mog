@@ -6,7 +6,6 @@
 <title>Interactive Book</title>
 <style>
     :root {
-        /* --- 🎨 CUSTOMIZE BOOK HERE --- */
         --book-width: 550px;
         --book-height: 750px;
         --paper-color: #f8f8f8;
@@ -25,7 +24,6 @@
         font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
         color: var(--text-color);
         background: #000 !important;
-        box-shadow: none !important;
     }
     
     #fluid-canvas {
@@ -36,11 +34,9 @@
         height: 100vh;
         z-index: 1;
         pointer-events: auto !important;
-        background: transparent;
-        box-shadow: none;
+        background: #000;
     }
     
-    /* --- STAGE (SCALER) --- */
     #stage {
         position: fixed;
         top: 0;
@@ -50,13 +46,11 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transform: none;
         transform-origin: center center;
         z-index: 10;
         pointer-events: none !important;
     }
 
-    /* --- BOOK CONTAINER --- */
     .book {
         position: relative;
         width: var(--book-width);
@@ -67,7 +61,6 @@
         pointer-events: none !important;
     }
 
-    /* --- PAPER STYLES --- */
     .paper {
         position: absolute;
         width: 100%;
@@ -112,7 +105,6 @@
         transform: rotateY(-180deg);
     }
 
-    /* --- CONTENT STYLING --- */
     .page-content {
         width: 100%;
         height: 100%;
@@ -150,7 +142,6 @@
         pointer-events: none !important;
     }
     
-    /* --- CONTROLS --- */
     .controls {
         position: absolute;
         bottom: 50px;
@@ -186,7 +177,6 @@
         cursor: not-allowed;
     }
 
-    /* Back Button */
     .back-btn-container {
         position: absolute;
         top: 40px;
@@ -217,15 +207,12 @@
 </head>
 <body>
 
-<!-- Fluid simulation background canvas -->
+<!-- Canvas MUST be first in body for script.js to work properly -->
 <canvas id="fluid-canvas"></canvas>
 
 <div id="stage">
-
-    <!-- Book Container -->
     <div id="book" class="book">
         
-        <!-- 📄 PAPER 1: Cover & Intro -->
         <div id="p1" class="paper">
             <div class="front">
                 <div class="page-content">
@@ -241,7 +228,6 @@
             </div>
         </div>
 
-        <!-- 📄 PAPER 2 -->
         <div id="p2" class="paper">
             <div class="front">
                 <div class="page-content">
@@ -257,7 +243,6 @@
             </div>
         </div>
 
-        <!-- 📄 PAPER 3 -->
         <div id="p3" class="paper">
             <div class="front">
                 <div class="page-content">
@@ -272,7 +257,6 @@
             </div>
         </div>
 
-        <!-- 📄 PAPER 4: Back Cover -->
         <div id="p4" class="paper">
             <div class="front">
                 <div class="page-content">
@@ -289,14 +273,13 @@
 
     </div>
 
-    <!-- Navigation Controls -->
     <div class="controls">
         <button class="btn" id="prev-btn">Previous</button>
         <button class="btn" id="next-btn">Next</button>
     </div>
     
     <div class="back-btn-container">
-        <button class="back-btn" onclick="goBack()">← Back to Home</button>
+        <button class="back-btn" id="back-home-btn">← Back to Home</button>
     </div>
 </div>
 
@@ -372,23 +355,19 @@
         nextBtn.disabled = (currentLocation === maxLocation);
     }
 
-    // Initialize Z-indexes
     papers.forEach((p, i) => {
         p.style.zIndex = numOfPapers - i;
     });
     updateButtons();
 
-    // Keyboard Nav
     document.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowRight') goNextPage();
         if (e.key === 'ArrowLeft') goPrevPage();
     });
 
-    // Button event listeners
     prevBtn.addEventListener('click', goPrevPage);
     nextBtn.addEventListener('click', goNextPage);
 
-    // --- SCALER LOGIC ---
     function resize() {
         const scale = Math.min(
             window.innerWidth / 1920,
@@ -399,11 +378,24 @@
     window.addEventListener('resize', resize);
     resize();
 
+    // --- HOME PAGE INTEGRATION (postMessage) ---
     function goBack() {
-        // Add your navigation logic here
-        window.history.back();
+        console.log('⬅️ Back button clicked');
+        // Send message to parent window to trigger reverse transition
+        window.parent.postMessage('navigateBack', '*');
+        
+        // Standalone fallback: if parent is self, we are not embedded
+        if (window.parent === window) {
+            console.log('Standalone mode detected - navigating to index.html');
+            window.location.href = 'index.html';
+        }
     }
+
+    document.getElementById('back-home-btn').addEventListener('click', goBack);
 </script>
+
+<!-- Load fluid simulation - MUST be after canvas element -->
 <script src="script.js"></script>
+
 </body>
 </html>
