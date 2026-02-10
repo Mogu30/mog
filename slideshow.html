@@ -284,6 +284,9 @@
 </div>
 
 <script>
+    console.log('🎨 [SLIDESHOW] Script started');
+    console.log('🎨 [SLIDESHOW] Canvas element:', document.getElementById('fluid-canvas'));
+    
     // --- BOOK LOGIC ---
     const prevBtn = document.querySelector("#prev-btn");
     const nextBtn = document.querySelector("#next-btn");
@@ -392,6 +395,8 @@
     }
 
     document.getElementById('back-home-btn').addEventListener('click', goBack);
+    
+    console.log('🎨 [SLIDESHOW] Book logic initialized');
 </script>
 
 <!-- Load fluid simulation - MUST be after canvas element -->
