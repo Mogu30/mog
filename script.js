@@ -31,8 +31,9 @@ console.log('🌊 [FLUID] Script.js loading...');
 // Use the #fluid-canvas if present, otherwise fallback to first canvas
 const canvas = document.getElementById('fluid-canvas') || document.getElementsByTagName('canvas')[0];
 console.log('🌊 [FLUID] Canvas found:', canvas);
-console.log('🌊 [FLUID] Canvas dimensions:', canvas ? `${canvas.width}x${canvas.height}` : 'N/A');
+console.log('🌊 [FLUID] Canvas initial dimensions:', canvas ? `${canvas.width}x${canvas.height}` : 'N/A');
 
+// Initial resize (may be 0x0, will be fixed by delayed resizes)
 resizeCanvas();
 
 let config = {
@@ -1175,8 +1176,10 @@ function calcDeltaTime () {
 }
 
 function resizeCanvas () {
-    let width = scaleByPixelRatio(canvas.clientWidth);
-    let height = scaleByPixelRatio(canvas.clientHeight);
+    // Force fullscreen dimensions if clientWidth/Height are 0 or invalid
+    let width = canvas.clientWidth > 0 ? scaleByPixelRatio(canvas.clientWidth) : scaleByPixelRatio(window.innerWidth);
+    let height = canvas.clientHeight > 0 ? scaleByPixelRatio(canvas.clientHeight) : scaleByPixelRatio(window.innerHeight);
+    console.log('🌊 [FLUID] Resizing canvas to:', width, 'x', height);
     if (canvas.width != width || canvas.height != height) {
         canvas.width = width;
         canvas.height = height;
@@ -1625,4 +1628,24 @@ function hashCode (s) {
         hash |= 0; // Convert to 32bit integer
     }
     return hash;
-};
+}
+
+// Force resize on window resize
+window.addEventListener('resize', resizeCanvas);
+
+// Force initial resize after delays to ensure proper dimensions
+// Multiple attempts to handle slow page loads
+setTimeout(() => {
+    console.log('🌊 [FLUID] Forcing resize (100ms)...');
+    resizeCanvas();
+}, 100);
+
+setTimeout(() => {
+    console.log('🌊 [FLUID] Forcing resize (500ms)...');
+    resizeCanvas();
+}, 500);
+
+setTimeout(() => {
+    console.log('🌊 [FLUID] Forcing resize (1000ms)...');
+    resizeCanvas();
+}, 1000);
