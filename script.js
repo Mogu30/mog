@@ -24,23 +24,26 @@ SOFTWARE.
 
 'use strict';
 
-
+console.log('🌊 [FLUID] Script.js loading...');
 
 // Simulation section
 
 // Use the #fluid-canvas if present, otherwise fallback to first canvas
 const canvas = document.getElementById('fluid-canvas') || document.getElementsByTagName('canvas')[0];
+console.log('🌊 [FLUID] Canvas found:', canvas);
+console.log('🌊 [FLUID] Canvas dimensions:', canvas ? `${canvas.width}x${canvas.height}` : 'N/A');
+
 resizeCanvas();
 
 let config = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
-    DENSITY_DISSIPATION: 0.1,
-    VELOCITY_DISSIPATION: 0.1,
+    DENSITY_DISSIPATION: 1,
+    VELOCITY_DISSIPATION: 0.2,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
-    CURL: 15,
+    CURL: 30,
     SPLAT_RADIUS: 0.25,
     SPLAT_FORCE: 6000,
     SHADING: false,
@@ -78,6 +81,8 @@ let splatStack = [];
 pointers.push(new pointerPrototype());
 
 const { gl, ext } = getWebGLContext(canvas);
+console.log('🌊 [FLUID] WebGL context created:', gl ? 'SUCCESS' : 'FAILED');
+console.log('🌊 [FLUID] Extensions:', ext);
 
 if (isMobile()) {
     config.DYE_RESOLUTION = 512;
