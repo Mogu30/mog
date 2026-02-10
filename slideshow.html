@@ -3,17 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cinematic Slideshow</title>
+<title>Interactive Book</title>
 <style>
     :root {
-        --design-width: 1920;
-        --design-height: 1080;
-        --primary-red: #ff0f0f;
-        --accent-glow: rgba(255, 15, 15, 0.6);
-        --bg-dark: #050505;
-        --card-bg: rgba(255, 255, 255, 0.05); /* Glass background */
-        --text-main: #ffffff;
-        --text-muted: #888888;
+        /* --- 🎨 CUSTOMIZE BOOK HERE --- */
+        --book-width: 550px;
+        --book-height: 750px;
+        --paper-color: #f8f8f8;
+        --text-color: #333;
+        --bg-color: #111;
     }
 
     * { box-sizing: border-box; }
@@ -23,324 +21,150 @@
         padding: 0;
         width: 100vw;
         height: 100vh;
-        background-color: #000000;
         overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
-        color: var(--text-main);
+        color: var(--text-color);
+        background: #000 !important;
+        box-shadow: none !important;
     }
     
-    /* --- CINEMATIC HYBRID BACKGROUND --- */
-        
-    /* 1. Particle Network (Vertices + Edges) */
-    #particle-canvas {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 1;
-        pointer-events: none;
-    }
-    
-    /* 3. Liquid Perspective Mesh */
-    .mesh-wrap {
-        position: absolute;
-        inset: 0;
-        perspective: 600px;
-        z-index: 2; /* Fix: Remove negative z-index */
-        pointer-events: none;
-        perspective-origin: 50% 50%;
-        animation: meshWave 8s ease-in-out infinite;
-        transform: scaleY(0);
-        opacity: 0;
-        transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 1.2s ease;
-    }
-    
-    .mesh {
-        position: absolute;
-        left: -50%;
-        width: 200%;
-        height: 100%;
-        background-image: 
-            /* ⬇️ ADJUST MESH LINE THICKNESS HERE (Change '2px' in all 4 places) */
-            linear-gradient(rgba(255, 15, 15, 0.8) 2px, transparent 2px),
-            linear-gradient(90deg, rgba(255, 15, 15, 0.8) 2px, transparent 2px);
-        background-size: 100px 100px; /* ⬅️ ADJUST GRID CELL SIZE HERE */
-        will-change: background-position, transform;
-    }
-
-    body.loaded .mesh-wrap {
-        transform: scaleY(1);
-        opacity: 1;
-    }
-    
-    .mesh-top {
+    #fluid-canvas {
+        position: fixed;
         top: 0;
-        height: 100%;
-        transform-origin: bottom;
-        transform: rotateX(60deg);
-        /* Fade out towards center (bottom of this element) and top */
-        mask-image: linear-gradient(to top, transparent 0%, black 40%, black 80%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to top, transparent 0%, black 40%, black 80%, transparent 100%);
-        animation: meshScroll 4s linear infinite reverse;
-    }
-    
-    .mesh-bottom {
-        bottom: 0;
-        height: 100%;
-        transform-origin: top;
-        transform: rotateX(-60deg);
-        /* Fade out towards center (top of this element) and bottom */
-        mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 80%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 80%, transparent 100%);
-        animation: meshScroll 4s linear infinite;
-    }
-
-    /* Slides Container */
-    #slides-container {
-        position: absolute;
-        inset: 0;
-        z-index: 5; /* Fix: Raise slides above background layers */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transform: scale(1);
-        transition: opacity 1s ease, transform 1s cubic-bezier(0.22, 1, 0.36, 1);
-        perspective: 1500px;
-        pointer-events: none;
-    }
-
-    body.slides-visible #slides-container {
-        opacity: 1;
-        transform: scale(1);
-        pointer-events: auto;
-    }
-
-    /* Individual Slide */
-    .slide {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0s;
-        z-index: 0;
-    }
-
-    /* Wrapper handles movement/scaling to isolate transforms from blur */
-    .card-wrapper {
-        width: 1400px;
-        height: 750px;
-        position: relative;
-        transition: transform 0s;
-        transform: translateX(100vw);
-        -webkit-backdrop-filter: blur(12px);
-        backdrop-filter: blur(12px);
-    }
-
-    .slide.active {
-        opacity: 1;
-        pointer-events: auto;
-        transition: opacity 0.8s ease;
-        z-index: 10;
-    }
-
-    .slide.active .card-wrapper {
-        transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-        transform: translateX(0) scale(1);
-        filter: brightness(1);
-    }
-    
-    .slide.prev {
-        opacity: 1;
-        transition: opacity 0.8s ease;
-        z-index: 5;
-    }
-
-    .slide.prev .card-wrapper {
-        transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-        transform: translateX(-85%) scale(0.85);
-        filter: brightness(0.6);
-    }
-
-    .slide.off-left {
-        opacity: 1;
-        z-index: 4;
-    }
-
-    .slide.off-left .card-wrapper {
-        transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-        transform: translateX(-100vw) scale(0.85);
-        filter: brightness(0.6);
-    }
-
-    .slide.next {
-        opacity: 1;
-        transition: opacity 0.8s ease;
-        z-index: 5;
-    }
-
-    .slide.next .card-wrapper {
-        transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-        transform: translateX(85%) scale(0.85);
-        filter: brightness(0.6);
-    }
-
-    /* Slide Card Content */
-    .card {
-        width: 100%;
-        height: 100%;
-        background: var(--card-bg);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-left: 6px solid var(--primary-red);
-        border-radius: 4px;
-        padding: 0; /* Reset padding for split layout */
-        box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 30px rgba(255, 15, 15, 0.05);
-        -webkit-backdrop-filter: blur(12px);
-        backdrop-filter: blur(12px);
-        isolation: isolate; /* Creates stacking context for blur */
-        display: flex;
-        flex-direction: row; /* Split layout */
-        align-items: stretch;
-        position: relative;
-        overflow: hidden;
-        transition: border-color 0.3s, box-shadow 0.3s;
-    }
-
-    /* Darkening overlay for non-active slides (replaces filter: brightness) */
-    .card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: black;
-        opacity: 0.6;
-        transition: opacity 0.8s ease;
-        pointer-events: none;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
         z-index: 1;
+        pointer-events: auto !important;
+        background: transparent;
+        box-shadow: none;
     }
     
-    .slide.active .card::after {
-        opacity: 0;
+    /* --- STAGE (SCALER) --- */
+    #stage {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: none;
+        transform-origin: center center;
+        z-index: 10;
+        pointer-events: none !important;
     }
 
-    /* Hover effect for active card */
-    .slide.active .card:hover {
-        border-color: var(--primary-red);
-        box-shadow: 0 0 60px rgba(255, 15, 15, 0.2);
+    /* --- BOOK CONTAINER --- */
+    .book {
+        position: relative;
+        width: var(--book-width);
+        height: var(--book-height);
+        transition: transform 0.5s;
+        transform-style: preserve-3d;
+        perspective: 1500px;
+        pointer-events: none !important;
     }
 
-    /* Continuous Floating Animation for Active Card */
-    .slide.active .card {
-        animation: cinematicFloat 8s ease-in-out infinite;
-        animation-delay: 0s;
+    /* --- PAPER STYLES --- */
+    .paper {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        transform-origin: left;
+        transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+        transform-style: preserve-3d;
+        pointer-events: none !important;
     }
 
-    .card-content {
-        flex: 1;
-        padding: 80px;
+    .front, .back {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        backface-visibility: hidden;
+        background: transparent !important;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        position: relative; /* Ensure z-index works */
+        align-items: center;
+        overflow: hidden;
+        box-shadow: 2px 2px 15px rgba(0,0,0,0.1);
+        border-radius: 2px 5px 5px 2px;
+        pointer-events: none !important;
+    }
+    
+    .front {
         z-index: 2;
     }
 
-    .card-image {
-        flex: 1.1;
+    .back {
+        z-index: 1;
+        transform: rotateY(180deg);
+        border-left: 5px solid rgba(0,0,0,0.05);
+    }
+
+    .paper.flipped {
+        transform: rotateY(-180deg);
+    }
+
+    /* --- CONTENT STYLING --- */
+    .page-content {
+        width: 100%;
         height: 100%;
-        background: transparent;
         position: relative;
-        overflow: hidden;
-        border-left: 1px solid rgba(255,255,255,0.05);
-        z-index: 2;
+        pointer-events: none !important;
     }
     
-    .card-image img {
+    .page-content img {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        display: block;
+        background: transparent !important;
+        pointer-events: none !important;
     }
 
-    /* Abstract visuals for images */
-    .card-image::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: 
-            radial-gradient(circle at 50% 50%, rgba(255, 15, 15, 0.1), transparent 60%),
-            linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.02) 45%, transparent 50%);
-        background-size: 100% 100%, 200% 200%;
-        animation: shimmer 10s infinite linear;
+    .text-content {
+        padding: 40px;
+        text-align: center;
+        pointer-events: none !important;
     }
     
-    /* Specific image styles per slide */
-    .slide:nth-child(1) .card-image { background: transparent; }
-    .slide:nth-child(2) .card-image { background: transparent; }
-    .slide:nth-child(3) .card-image { background: transparent; }
-    .slide:nth-child(4) .card-image { background: transparent; }
-
-    .card-image .visual-elem {
-        position: absolute;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
-        width: 60%; height: 60%;
-        border: 1px solid rgba(255, 15, 15, 0.3);
-        border-radius: 50%;
-        box-shadow: 0 0 40px rgba(255, 0, 0, 0.1);
-    }
-
-    .card h2 {
-        font-size: 6rem;
-        margin: 0 0 10px 0;
-        text-transform: uppercase;
-        font-weight: 800;
-        letter-spacing: 4px;
-        background: linear-gradient(to right, #fff, #999);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-
-    .card h3 {
+    .text-content h2 {
         font-size: 2rem;
-        color: var(--primary-red);
-        margin: 0 0 40px 0;
-        font-weight: 400;
-        letter-spacing: 6px;
+        margin-bottom: 1rem;
+        color: #111;
         text-transform: uppercase;
-        text-shadow: 0 0 20px var(--accent-glow);
+        letter-spacing: 2px;
+        pointer-events: none !important;
     }
-
-    .card p {
-        font-size: 1.6rem;
+    
+    .text-content p {
+        font-size: 1.1rem;
         line-height: 1.6;
-        color: var(--text-muted);
-        max-width: 800px;
-        margin: 0;
-        border-left: 1px solid rgba(255,255,255,0.1);
-        padding-left: 30px;
+        color: #555;
+        pointer-events: none !important;
     }
-
-    /* Controls */
+    
+    /* --- CONTROLS --- */
     .controls {
         position: absolute;
-        bottom: 80px;
-        right: 100px;
-        z-index: 10;
+        bottom: 50px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 20;
         display: flex;
-        gap: 20px;
+        gap: 30px;
+        pointer-events: auto !important;
     }
 
     .btn {
-        background: rgba(0, 0, 0, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         color: white;
         padding: 15px 35px;
         font-size: 1.1rem;
@@ -348,462 +172,238 @@
         letter-spacing: 2px;
         cursor: pointer;
         transition: all 0.3s ease;
-        backdrop-filter: blur(5px);
+        pointer-events: auto !important;
     }
 
-    .btn:hover {
-        background: var(--primary-red);
-        border-color: var(--primary-red);
-        box-shadow: 0 0 30px var(--accent-glow);
+    .btn:hover:not(:disabled) {
+        background: rgba(0,0,0,0.5);
+        color: white;
         transform: translateY(-2px);
     }
-
-    .status-bar {
-        position: absolute;
-        bottom: 80px;
-        left: 100px;
-        z-index: 10;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        font-size: 1rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: rgba(255,255,255,0.4);
+    
+    .btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
     }
-
-    .indicator {
-        width: 10px; height: 10px;
-        background: var(--primary-red);
-        border-radius: 50%;
-        box-shadow: 0 0 15px var(--primary-red);
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-    .indicator.on { opacity: 1; }
 
     /* Back Button */
     .back-btn-container {
         position: absolute;
-        bottom: 50px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 20;
-        pointer-events: auto;
+        top: 40px;
+        left: 40px;
+        z-index: 30;
+        pointer-events: auto !important;
     }
     
     .back-btn {
         background: rgba(0, 0, 0, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(8px);
-        padding: 20px 50px; /* Increased padding to improve hitbox */
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 20px 50px;
         font-size: 0.9rem;
+        color: white;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        pointer-events: auto !important;
     }
-
-    /* Animations */
-    @keyframes cinematicFloat {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-20px) scale(1.02); }
-    }
-    
-    @keyframes shimmer {
-        0% { background-position: 0% 0%, 0% 0%; }
-        100% { background-position: 0% 0%, 200% 200%; }
-    }
-
-    @keyframes meshScroll {
-        0% { background-position: 0 0; }
-        100% { background-position: 0 100px; }
-    }
-    
-    @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
-    
-    @keyframes meshWave {
-        0%, 100% { perspective-origin: 50% 40%; }
-        50% { perspective-origin: 50% 60%; }
-        0%, 100% { perspective-origin: 50% 45%; }
-        50% { perspective-origin: 50% 55%; }
+    .back-btn:hover {
+        background: rgba(0,0,0,0.7);
+        color: white;
     }
 </style>
 </head>
 <body>
 
+<!-- Fluid simulation background canvas -->
+<canvas id="fluid-canvas"></canvas>
+
 <div id="stage">
-    <div class="atmosphere">
-        <!-- Particle Network -->
-        <canvas id="particle-canvas"></canvas>
+
+    <!-- Book Container -->
+    <div id="book" class="book">
         
-        <!-- Liquid Perspective Mesh -->
-        <div class="mesh-wrap">
-            <div class="mesh mesh-top"></div>
-            <div class="mesh mesh-bottom"></div>
+        <!-- 📄 PAPER 1: Cover & Intro -->
+        <div id="p1" class="paper">
+            <div class="front">
+                <div class="page-content">
+                    <img src="edu slides/1.jpg" alt="Book Cover">
+                </div>
+            </div>
+            <div class="back">
+                <div class="text-content">
+                    <h2>Introduction</h2>
+                    <p>Welcome to my education portfolio.</p>
+                    <p>Flip through to see my journey.</p>
+                </div>
+            </div>
         </div>
+
+        <!-- 📄 PAPER 2 -->
+        <div id="p2" class="paper">
+            <div class="front">
+                <div class="page-content">
+                    <img src="edu slides/2.jpg" alt="Page 2 Image">
+                </div>
+            </div>
+            <div class="back">
+                <div class="text-content">
+                    <h2>Chapter 1</h2>
+                    <p>Details about this project go here.</p>
+                    <p>Lorem ipsum dolor sit amet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📄 PAPER 3 -->
+        <div id="p3" class="paper">
+            <div class="front">
+                <div class="page-content">
+                    <img src="edu slides/3.jpg" alt="Page 3 Image">
+                </div>
+            </div>
+            <div class="back">
+                <div class="text-content">
+                    <h2>Chapter 2</h2>
+                    <p>More information about this section.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📄 PAPER 4: Back Cover -->
+        <div id="p4" class="paper">
+            <div class="front">
+                <div class="page-content">
+                    <img src="edu slides/4.jpg" alt="Page 4 Image">
+                </div>
+            </div>
+            <div class="back">
+                <div class="text-content">
+                    <h2>The End</h2>
+                    <p>Thank you for viewing.</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <div id="slides-container">
-        <!-- Slide 1 -->
-        <div class="slide active">
-            <div class="card-wrapper">
-                <div class="card">
-                    <div class="card-content">
-                        <h2>Ignition</h2>
-                        <h3>System Online</h3>
-                        <p>The core sequence has been initiated. Power levels are rising across the grid as we prepare for the initial breach.</p>
-                    </div>
-                    <div class="card-image">
-                        <img src="edu slides/1.jpg" alt="Slide 1">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Slide 2 -->
-        <div class="slide">
-            <div class="card-wrapper">
-                <div class="card">
-                    <div class="card-content">
-                        <h2>Velocity</h2>
-                        <h3>Maximum Speed</h3>
-                        <p>Accelerating through the digital ether. The boundaries of reality blur as we approach terminal velocity.</p>
-                    </div>
-                    <div class="card-image">
-                        <img src="edu slides/2.jpg" alt="Slide 2">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Slide 3 -->
-        <div class="slide">
-            <div class="card-wrapper">
-                <div class="card">
-                    <div class="card-content">
-                        <h2>Eclipse</h2>
-                        <h3>Shadow Protocol</h3>
-                        <p>Entering the dark sector. Stealth systems engaged. We move unseen through the void of the network.</p>
-                    </div>
-                    <div class="card-image">
-                        <img src="edu slides/3.jpg" alt="Slide 3">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Slide 4 -->
-        <div class="slide">
-            <div class="card-wrapper">
-                <div class="card">
-                    <div class="card-content">
-                        <h2>Horizon</h2>
-                        <h3>New Dawn</h3>
-                        <p>The destination is in sight. A new world awaits beyond the edge of the known interface.</p>
-                    </div>
-                    <div class="card-image">
-                        <img src="edu slides/4.jpg" alt="Slide 4">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="status-bar">
-        <div class="indicator on" id="auto-dot"></div>
-        <span id="slide-counter">01 / 04</span>
-    </div>
-
+    <!-- Navigation Controls -->
     <div class="controls">
-        <button class="btn" onclick="prevSlide()">Prev</button>
-        <button class="btn" onclick="toggleAutoplay()">Auto</button>
-        <button class="btn" onclick="nextSlide()">Next</button>
+        <button class="btn" id="prev-btn">Previous</button>
+        <button class="btn" id="next-btn">Next</button>
     </div>
     
     <div class="back-btn-container">
-        <button class="btn back-btn" onclick="goBack()">← Back to Home</button>
+        <button class="back-btn" onclick="goBack()">← Back to Home</button>
     </div>
 </div>
 
 <script>
-    const slides = document.querySelectorAll('.slide');
-    const autoDot = document.getElementById('auto-dot');
-    const counter = document.getElementById('slide-counter');
+    // --- BOOK LOGIC ---
+    const prevBtn = document.querySelector("#prev-btn");
+    const nextBtn = document.querySelector("#next-btn");
+    const book = document.querySelector("#book");
     
-    let currentIndex = 0;
-    let isAutoplay = true;
-    let autoInterval;
-    const totalSlides = slides.length;
-
-    // 2. Slideshow Logic
-    function showSlide(index) {
-        // Wrap index
-        if (index >= totalSlides) index = index % totalSlides;
-        if (index < 0) index = (index % totalSlides + totalSlides) % totalSlides;
-
-        // Update classes for all slides based on distance from current
-        slides.forEach((slide, i) => {
-            // Calculate distance with wrapping
-            let diff = (i - index);
-            // Adjust diff to be shortest path (-1, 0, 1)
-            if (diff < -Math.floor(totalSlides / 2)) diff += totalSlides;
-            if (diff > Math.floor(totalSlides / 2)) diff -= totalSlides;
-
-            // Get old diff to detect wrap-around
-            let oldDiff = slide.dataset.diff ? parseInt(slide.dataset.diff) : diff;
-            slide.dataset.diff = diff;
-
-            const wrapper = slide.querySelector('.card-wrapper');
-            slide.className = 'slide'; // Reset base class
-            wrapper.style.transition = ''; 
-            wrapper.style.transform = '';
-
-            // Handle Wrap-around Teleportation
-            // If moving from Far Right to Prev (Looping behind to Left)
-            if (oldDiff > 1 && diff === -1) {
-                wrapper.style.transition = 'none';
-                wrapper.style.transform = 'translateX(-100vw) scale(0.85)';
-                slide.offsetHeight; // Force reflow
-            }
-            // If moving from Far Left to Next (Looping behind to Right)
-            if (oldDiff < -1 && diff === 1) {
-                wrapper.style.transition = 'none';
-                wrapper.style.transform = 'translateX(100vw) scale(0.85)';
-                slide.offsetHeight; // Force reflow
-            }
-
-            if (diff === 0) slide.classList.add('active');
-            else if (diff === -1) slide.classList.add('prev');
-            else if (diff === 1) slide.classList.add('next');
-            else if (diff < -1) slide.classList.add('off-left');
-            // else remains default (off-right / hidden)
-        });
-
-        currentIndex = index;
-        updateCounter();
+    const papers = [];
+    for(let i=1; i<=4; i++) {
+        papers.push(document.querySelector(`#p${i}`));
     }
 
-    function nextSlide() {
-        showSlide(currentIndex + 1);
-        resetAutoplay();
+    let currentLocation = 1;
+    let numOfPapers = 4;
+    let maxLocation = numOfPapers + 1;
+
+    function openBook() {
+        book.style.transform = "translateX(50%)";
     }
 
-    function prevSlide() {
-        showSlide(currentIndex - 1);
-        resetAutoplay();
-    }
-
-    function updateCounter() {
-        counter.textContent = `0${currentIndex + 1} / 0${totalSlides}`;
-    }
-
-    // 3. Autoplay Logic
-    function startAutoplay() {
-        if(autoInterval) clearInterval(autoInterval);
-        autoInterval = setInterval(() => {
-            showSlide(currentIndex + 1);
-        }, 4000);
-        autoDot.classList.add('on');
-        isAutoplay = true;
-    }
-
-    function stopAutoplay() {
-        if(autoInterval) clearInterval(autoInterval);
-        autoDot.classList.remove('on');
-        isAutoplay = false;
-    }
-
-    function toggleAutoplay() {
-        if (isAutoplay) stopAutoplay();
-        else startAutoplay();
-    }
-
-    function resetAutoplay() {
-        if (isAutoplay) {
-            clearInterval(autoInterval);
-            startAutoplay();
+    function closeBook(isAtBeginning) {
+        if(isAtBeginning) {
+            book.style.transform = "translateX(0%)";
+        } else {
+            book.style.transform = "translateX(100%)";
         }
     }
 
-    // 4. Keyboard Nav
+    function goNextPage() {
+        if(currentLocation < maxLocation) {
+            const paper = papers[currentLocation - 1];
+            
+            if(currentLocation === 1) {
+                openBook();
+            }
+            
+            paper.classList.add("flipped");
+            paper.style.zIndex = currentLocation;
+            
+            if(currentLocation === numOfPapers) {
+                closeBook(false);
+            }
+            
+            currentLocation++;
+            updateButtons();
+        }
+    }
+
+    function goPrevPage() {
+        if(currentLocation > 1) {
+            const paper = papers[currentLocation - 2];
+            
+            if(currentLocation === 2) {
+                closeBook(true);
+            }
+            
+            paper.classList.remove("flipped");
+            paper.style.zIndex = numOfPapers - (currentLocation - 2);
+            
+            if(currentLocation === maxLocation) {
+                openBook();
+            }
+            
+            currentLocation--;
+            updateButtons();
+        }
+    }
+
+    function updateButtons() {
+        prevBtn.disabled = (currentLocation === 1);
+        nextBtn.disabled = (currentLocation === maxLocation);
+    }
+
+    // Initialize Z-indexes
+    papers.forEach((p, i) => {
+        p.style.zIndex = numOfPapers - i;
+    });
+    updateButtons();
+
+    // Keyboard Nav
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight') nextSlide();
-        if (e.key === 'ArrowLeft') prevSlide();
-        if (e.key === ' ') toggleAutoplay();
+        if (e.key === 'ArrowRight') goNextPage();
+        if (e.key === 'ArrowLeft') goPrevPage();
     });
 
-    // Global animation state
-    window.bgAnimation = { progress: 0, target: 0 };
+    // Button event listeners
+    prevBtn.addEventListener('click', goPrevPage);
+    nextBtn.addEventListener('click', goNextPage);
 
-    // 5. Back to Home
+    // --- SCALER LOGIC ---
+    function resize() {
+        const scale = Math.min(
+            window.innerWidth / 1920,
+            window.innerHeight / 1080
+        );
+        document.getElementById('stage').style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
     function goBack() {
-        console.log('⬅️ Back button clicked');
-        
-        // Trigger exit animations
-        window.bgAnimation.target = 0;
-        document.body.classList.remove('slides-visible');
-        document.body.classList.remove('loaded');
-        
-        // Standalone fallback: if parent is self, we are not embedded
-        setTimeout(() => {
-            window.parent.postMessage('navigateBack', '*');
-            if (window.parent === window) {
-                console.log('Standalone mode detected');
-                alert('Back button clicked (Standalone Mode)');
-            }
-        }, 1000);
+        // Add your navigation logic here
+        window.history.back();
     }
-
-    // Init
-    startAutoplay();
-    
-    // Listen for start signal
-    window.addEventListener('message', (e) => {
-        if (e.data === 'startAnimation') {
-            document.body.classList.add('loaded');
-            window.bgAnimation.target = 1;
-        }
-    });
-
-    // Standalone fallback
-    if (window.self === window.top) {
-        setTimeout(() => {
-            document.body.classList.add('loaded');
-            window.bgAnimation.target = 1;
-        }, 100);
-    }
-
-    // --- RING NETWORK SYSTEM ---
-    (function() {
-        const canvas = document.getElementById('particle-canvas');
-        const ctx = canvas.getContext('2d');
-        let width, height;
-        const centerX = 1920 / 2;
-        const centerY = 1080 / 2;
-        
-        const rings = [];
-        const RING_COUNT = 4; /* Reduced from 8 to 4 for massive performance gain */
-
-        function resize() {
-            width = canvas.width = 1920;
-            height = canvas.height = 1080;
-        }
-        resize();
-        
-        class Ring {
-            constructor(radius, speed, thickness, vertexCount) {
-                this.radius = radius;
-                this.angle = Math.random() * Math.PI * 2;
-                this.speed = speed;
-                this.thickness = thickness;
-                this.vertices = [];
-                
-                // Create vertices distributed along the ring
-                for (let i = 0; i < vertexCount; i++) {
-                    this.vertices.push({
-                        baseAngle: (i / vertexCount) * Math.PI * 2,
-                        x: 0,
-                        y: 0
-                    });
-                }
-            }
-            
-            update() {
-                // Spin faster when scaling up/down (when progress is low)
-                // Base speed + extra speed based on how far we are from full size
-                const speedMultiplier = 1 + (1 - window.bgAnimation.progress) * 15;
-                this.angle += this.speed * speedMultiplier;
-                
-                const currentRadius = this.radius * window.bgAnimation.progress;
-
-                // Update absolute positions of vertices
-                for (let v of this.vertices) {
-                    const currentAngle = this.angle + v.baseAngle;
-                    v.x = centerX + Math.cos(currentAngle) * currentRadius;
-                    v.y = centerY + Math.sin(currentAngle) * currentRadius;
-                }
-            }
-            
-            draw(ctx) {
-                const currentRadius = this.radius * window.bgAnimation.progress;
-                
-                // Draw the ring itself
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, currentRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 15, 15, ${0.2 + this.thickness * 0.1})`;
-                ctx.lineWidth = this.thickness;
-                
-                // Make thinner rings dashed for variety
-                if (this.thickness < 1.5) {
-                    ctx.setLineDash([10, 15]);
-                } else {
-                    ctx.setLineDash([]);
-                }
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Draw vertices
-                ctx.fillStyle = 'rgba(255, 15, 15, 0.8)';
-                for (let v of this.vertices) {
-                    ctx.beginPath();
-                    ctx.arc(v.x, v.y, 2 + this.thickness * 0.5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        }
-
-        function initRings() {
-            rings.length = 0;
-            for (let i = 0; i < RING_COUNT; i++) {
-                const radius = 350 + i * 100; // Spread rings from center
-                const speed = (i % 2 === 0 ? 1 : -1) * (0.001 + Math.random() * 0.002);
-                const thickness = 0.5 + Math.random() * 2.5;
-                const vertexCount = 8 + i * 4; /* Reduced vertices per ring */
-                rings.push(new Ring(radius, speed, thickness, vertexCount));
-            }
-        }
-        initRings();
-
-        function animateParticles() {
-            ctx.clearRect(0, 0, width, height);
-            
-            // Smoothly interpolate progress
-            window.bgAnimation.progress += (window.bgAnimation.target - window.bgAnimation.progress) * 0.05;
-            
-            // Trigger slides when background is mostly ready
-            if (window.bgAnimation.progress > 0.8 && window.bgAnimation.target === 1) {
-                document.body.classList.add('slides-visible');
-            }
-            
-            // 1. Update all rings first
-            rings.forEach(ring => ring.update());
-
-            // 2. Draw connections (behind rings/dots)
-            ctx.lineWidth = 2; /* Thicker lines to survive the blur */
-            
-            const allVertices = [];
-            rings.forEach(r => allVertices.push(...r.vertices));
-
-            for (let i = 0; i < allVertices.length; i++) {
-                const v1 = allVertices[i];
-                for (let j = i + 1; j < allVertices.length; j++) {
-                    const v2 = allVertices[j];
-                    const dx = v1.x - v2.x;
-                    const dy = v1.y - v2.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    // Connect if close enough (Increased distance and opacity)
-                    if (dist < 400) {
-                        ctx.beginPath();
-                        ctx.moveTo(v1.x, v1.y);
-                        ctx.lineTo(v2.x, v2.y);
-                        ctx.strokeStyle = `rgba(255, 15, 15, ${0.6 * (1 - dist / 400)})`;
-                        ctx.stroke();
-                    }
-                }
-            }
-            
-            // 3. Draw rings and vertices (on top)
-            rings.forEach(ring => ring.draw(ctx));
-            
-            requestAnimationFrame(animateParticles);
-        }
-        animateParticles();
-    })();
 </script>
+<script src="script.js"></script>
 </body>
 </html>
