@@ -71,75 +71,38 @@
         transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
         transform-style: preserve-3d;
         pointer-events: none !important;
+        will-change: transform;
     }
 
-    .front, .back {
+    figure {
+        margin: 0;
+        display: block;
         position: absolute;
         width: 100%;
         height: 100%;
         top: 0;
         left: 0;
         backface-visibility: hidden;
-        background: transparent !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        overflow: hidden;
-        box-shadow: 2px 2px 15px rgba(0,0,0,0.1);
-        border-radius: 2px 5px 5px 2px;
+        -webkit-backface-visibility: hidden;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
         pointer-events: none !important;
     }
     
-    .front {
+    figure.front {
         z-index: 2;
+        transform: rotateY(0deg);
     }
 
-    .back {
+    figure.back {
         z-index: 1;
         transform: rotateY(180deg);
-        border-left: 5px solid rgba(0,0,0,0.05);
+        background-color: #f8f8f8; /* Fallback if image doesn't load */
     }
-
+    
     .paper.flipped {
         transform: rotateY(-180deg);
-    }
-
-    .page-content {
-        width: 100%;
-        height: 100%;
-        position: relative;
-        pointer-events: none !important;
-    }
-    
-    .page-content img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        background: transparent !important;
-        pointer-events: none !important;
-    }
-
-    .text-content {
-        padding: 40px;
-        text-align: center;
-        pointer-events: none !important;
-    }
-    
-    .text-content h2 {
-        font-size: 2rem;
-        margin-bottom: 1rem;
-        color: #111;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        pointer-events: none !important;
-    }
-    
-    .text-content p {
-        font-size: 1.1rem;
-        line-height: 1.6;
-        color: #555;
-        pointer-events: none !important;
     }
     
     .controls {
@@ -207,68 +170,35 @@
 </head>
 <body>
 
-<!-- Canvas MUST be first in body for script.js to work properly -->
+<!-- Canvas MUST be first in body -->
 <canvas id="fluid-canvas"></canvas>
 
 <div id="stage">
     <div id="book" class="book">
         
         <div id="p1" class="paper">
-            <div class="front">
-                <div class="page-content">
-                    <img src="edu slides/1.jpg" alt="Book Cover">
-                </div>
-            </div>
-            <div class="back">
-                <div class="text-content">
-                    <h2>Introduction</h2>
-                    <p>Welcome to my education portfolio.</p>
-                    <p>Flip through to see my journey.</p>
-                </div>
-            </div>
+            <figure class="front" style="background-image: url('assets/book/p1.png');"></figure>
+            <figure class="back" style="background-image: url('assets/book/BACK.jpg');"></figure>
         </div>
 
         <div id="p2" class="paper">
-            <div class="front">
-                <div class="page-content">
-                    <img src="edu slides/2.jpg" alt="Page 2 Image">
-                </div>
-            </div>
-            <div class="back">
-                <div class="text-content">
-                    <h2>Chapter 1</h2>
-                    <p>Details about this project go here.</p>
-                    <p>Lorem ipsum dolor sit amet.</p>
-                </div>
-            </div>
+            <figure class="front" style="background-image: url('assets/book/p2.jpg');"></figure>
+            <figure class="back" style="background-image: url('assets/book/BACK.jpg');"></figure>
         </div>
 
         <div id="p3" class="paper">
-            <div class="front">
-                <div class="page-content">
-                    <img src="edu slides/3.jpg" alt="Page 3 Image">
-                </div>
-            </div>
-            <div class="back">
-                <div class="text-content">
-                    <h2>Chapter 2</h2>
-                    <p>More information about this section.</p>
-                </div>
-            </div>
+            <figure class="front" style="background-image: url('assets/book/p3.jpg');"></figure>
+            <figure class="back" style="background-image: url('assets/book/BACK.jpg');"></figure>
         </div>
 
         <div id="p4" class="paper">
-            <div class="front">
-                <div class="page-content">
-                    <img src="edu slides/4.jpg" alt="Page 4 Image">
-                </div>
-            </div>
-            <div class="back">
-                <div class="text-content">
-                    <h2>The End</h2>
-                    <p>Thank you for viewing.</p>
-                </div>
-            </div>
+            <figure class="front" style="background-image: url('assets/book/p4.jpg');"></figure>
+            <figure class="back" style="background-image: url('assets/book/BACK.jpg');"></figure>
+        </div>
+
+        <div id="p5" class="paper">
+            <figure class="front" style="background-image: url('assets/book/p5.jpg');"></figure>
+            <figure class="back" style="background-image: url('assets/book/p5-back.jpg');"></figure>
         </div>
 
     </div>
@@ -285,7 +215,6 @@
 
 <script>
     console.log('🎨 [SLIDESHOW] Script started');
-    console.log('🎨 [SLIDESHOW] Canvas element:', document.getElementById('fluid-canvas'));
     
     // --- BOOK LOGIC ---
     const prevBtn = document.querySelector("#prev-btn");
@@ -293,12 +222,12 @@
     const book = document.querySelector("#book");
     
     const papers = [];
-    for(let i=1; i<=4; i++) {
+    for(let i=1; i<=5; i++) {
         papers.push(document.querySelector(`#p${i}`));
     }
 
     let currentLocation = 1;
-    let numOfPapers = 4;
+    let numOfPapers = 5;
     let maxLocation = numOfPapers + 1;
 
     function openBook() {
@@ -397,10 +326,63 @@
     document.getElementById('back-home-btn').addEventListener('click', goBack);
     
     console.log('🎨 [SLIDESHOW] Book logic initialized');
+    
+    // --- FLUID SIMULATION INITIALIZATION ---
+    let fluidInitialized = false;
+    
+    function initFluidSimulation() {
+        if (fluidInitialized) {
+            console.log('⚠️ [SLIDESHOW] Fluid simulation already initialized');
+            return;
+        }
+        
+        console.log('🎨 [SLIDESHOW] Initializing fluid simulation...');
+        const canvas = document.getElementById('fluid-canvas');
+        
+        if (!canvas) {
+            console.error('❌ [SLIDESHOW] Canvas not found!');
+            return;
+        }
+        
+        console.log('✅ [SLIDESHOW] Canvas found:', canvas);
+        console.log('📏 Canvas dimensions:', canvas.clientWidth, 'x', canvas.clientHeight);
+        
+        // Wait a bit longer to ensure iframe is fully visible and has proper dimensions
+        setTimeout(() => {
+            const scriptElement = document.createElement('script');
+            scriptElement.src = 'script.js';
+            scriptElement.onload = () => {
+                console.log('✅ [SLIDESHOW] Fluid simulation script loaded');
+                fluidInitialized = true;
+            };
+            scriptElement.onerror = () => {
+                console.error('❌ [SLIDESHOW] Failed to load fluid simulation script');
+            };
+            document.body.appendChild(scriptElement);
+        }, 200);
+    }
+    
+    // Listen for message from parent window to start animation
+    window.addEventListener('message', (event) => {
+        console.log('📨 [SLIDESHOW] Received message:', event.data);
+        if (event.data === 'startAnimation') {
+            console.log('🎬 [SLIDESHOW] Starting animation on parent request');
+            initFluidSimulation();
+        }
+    });
+    
+    // For standalone mode (when opened directly, not in iframe)
+    if (window.parent === window) {
+        console.log('🔧 [SLIDESHOW] Standalone mode - initializing immediately');
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFluidSimulation);
+        } else {
+            initFluidSimulation();
+        }
+    } else {
+        console.log('🔧 [SLIDESHOW] Iframe mode - waiting for parent message');
+    }
 </script>
-
-<!-- Load fluid simulation - MUST be after canvas element -->
-<script src="script.js"></script>
 
 </body>
 </html>
