@@ -24,23 +24,24 @@ SOFTWARE.
 
 'use strict';
 
-console.log('🌊 [FLUID] Script.js loading...');
+let isRosyMode = false;
+
+window.addEventListener('rosyMode', (event) => {
+    isRosyMode = event.detail.active;
+});
+
 
 // Simulation section
 
 // Use the #fluid-canvas if present, otherwise fallback to first canvas
 const canvas = document.getElementById('fluid-canvas') || document.getElementsByTagName('canvas')[0];
-console.log('🌊 [FLUID] Canvas found:', canvas);
-console.log('🌊 [FLUID] Canvas initial dimensions:', canvas ? `${canvas.width}x${canvas.height}` : 'N/A');
-
-// Initial resize (may be 0x0, will be fixed by delayed resizes)
 resizeCanvas();
 
 let config = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
-    DENSITY_DISSIPATION: 1,
+    DENSITY_DISSIPATION: 0.5,
     VELOCITY_DISSIPATION: 0.2,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
@@ -82,8 +83,6 @@ let splatStack = [];
 pointers.push(new pointerPrototype());
 
 const { gl, ext } = getWebGLContext(canvas);
-console.log('🌊 [FLUID] WebGL context created:', gl ? 'SUCCESS' : 'FAILED');
-console.log('🌊 [FLUID] Extensions:', ext);
 
 if (isMobile()) {
     config.DYE_RESOLUTION = 512;
@@ -1176,10 +1175,8 @@ function calcDeltaTime () {
 }
 
 function resizeCanvas () {
-    // Force fullscreen dimensions if clientWidth/Height are 0 or invalid
-    let width = canvas.clientWidth > 0 ? scaleByPixelRatio(canvas.clientWidth) : scaleByPixelRatio(window.innerWidth);
-    let height = canvas.clientHeight > 0 ? scaleByPixelRatio(canvas.clientHeight) : scaleByPixelRatio(window.innerHeight);
-    console.log('🌊 [FLUID] Resizing canvas to:', width, 'x', height);
+    let width = scaleByPixelRatio(canvas.clientWidth);
+    let height = scaleByPixelRatio(canvas.clientHeight);
     if (canvas.width != width || canvas.height != height) {
         canvas.width = width;
         canvas.height = height;
@@ -1411,9 +1408,11 @@ function splatPointer (pointer) {
 function multipleSplats (amount) {
     for (let i = 0; i < amount; i++) {
         const color = generateColor();
-        color.r *= 10.0;
-        color.g *= 10.0;
-        color.b *= 10.0;
+        if (!isRosyMode) {
+            color.r *= 10.0;
+            color.g *= 10.0;
+            color.b *= 10.0;
+        }
         const x = Math.random();
         const y = Math.random();
         const dx = 1000 * (Math.random() - 0.5);
@@ -1547,11 +1546,20 @@ function correctDeltaY (delta) {
 }
 
 function generateColor () {
-    // Always return dark red color
+    if (isRosyMode) {
+        const pinkVariations = [
+            { r: 0.40, g: 0.08, b: 0.12 },
+            { r: 0.42, g: 0.09, b: 0.13 },
+            { r: 0.38, g: 0.07, b: 0.11 },
+            { r: 0.41, g: 0.08, b: 0.12 },
+        ];
+        return pinkVariations[Math.floor(Math.random() * pinkVariations.length)];
+    }
+    
     return {
-        r: 0.15,  // Darker red (was 0.4)
-        g: 0.0,   // No green
-        b: 0.0    // No blue
+        r: 0.15,
+        g: 0.0,
+        b: 0.0
     };
 }
 
@@ -1628,24 +1636,132 @@ function hashCode (s) {
         hash |= 0; // Convert to 32bit integer
     }
     return hash;
+};
+// ============ GLITTER PARTICLES ============
+const glitterParticles = [];
+let glitterCanvas, glitterCtx;
+
+function createGlitterCanvas() {
+    glitterCanvas = document.createElement('canvas');
+    glitterCanvas.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 5;
+    `;
+    document.body.appendChild(glitterCanvas);
+    glitterCtx = glitterCanvas.getContext('2d');
+    resizeGlitterCanvas();
 }
 
-// Force resize on window resize
-window.addEventListener('resize', resizeCanvas);
+function resizeGlitterCanvas() {
+    if (glitterCanvas) {
+        glitterCanvas.width = window.innerWidth;
+        glitterCanvas.height = window.innerHeight;
+    }
+}
 
-// Force initial resize after delays to ensure proper dimensions
-// Multiple attempts to handle slow page loads
-setTimeout(() => {
-    console.log('🌊 [FLUID] Forcing resize (100ms)...');
-    resizeCanvas();
-}, 100);
+function initGlitter() {
+    createGlitterCanvas();
+    const count = 100;
+    for (let i = 0; i < count; i++) {
+        glitterParticles.push({
+            x: Math.random() * glitterCanvas.width,
+            y: Math.random() * glitterCanvas.height,
+            vx: (Math.random() - 0.5) * 0.3,
+            vy: (Math.random() - 0.5) * 0.3,
+            size: Math.random() * 2.5 + 0.5,
+            opacity: Math.random() * 0.6 + 0.4,
+            phase: Math.random() * Math.PI * 2,
+            speed: Math.random() * 0.05 + 0.02
+        });
+    }
+}
 
+function drawGlitter() {
+    if (!glitterCanvas || !glitterCtx || !isRosyMode) {
+        // Clear and hide if not in Rosy mode
+        if (glitterCanvas && glitterCtx) {
+            glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+        }
+        return;
+    }
+    
+    glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+    
+    for (let p of glitterParticles) {
+        // React to mouse/touch movement (fluid interaction)
+        if (pointers && pointers[0] && pointers[0].down) {
+            const pointer = pointers[0];
+            const dx = p.x - pointer.texcoordX * glitterCanvas.width;
+            const dy = p.y - (1.0 - pointer.texcoordY) * glitterCanvas.height;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Push particles away from mouse
+            if (dist < 150) {
+                const force = (150 - dist) / 150;
+                p.vx -= pointer.deltaX * 30 * force;
+                p.vy += pointer.deltaY * 30 * force;
+            }
+        }
+        
+        // Apply velocity with damping
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.95; // Damping
+        p.vy *= 0.95;
+        
+        // Add gentle drift back
+        p.vx += (Math.random() - 0.5) * 0.1;
+        p.vy += (Math.random() - 0.5) * 0.1;
+        
+        // Limit velocity
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (speed > 5) {
+            p.vx = (p.vx / speed) * 5;
+            p.vy = (p.vy / speed) * 5;
+        }
+        
+        // Wrap around
+        if (p.x < 0) p.x = glitterCanvas.width;
+        if (p.x > glitterCanvas.width) p.x = 0;
+        if (p.y < 0) p.y = glitterCanvas.height;
+        if (p.y > glitterCanvas.height) p.y = 0;
+        
+        // Twinkle
+        p.phase += p.speed;
+        const twinkle = 0.5 + 0.5 * Math.sin(p.phase);
+        
+        // Draw sparkle (pink only in Rosy mode)
+        glitterCtx.globalAlpha = p.opacity * twinkle;
+        glitterCtx.fillStyle = '#ffb3d9';
+        
+        glitterCtx.beginPath();
+        glitterCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        glitterCtx.fill();
+        
+        // White center
+        glitterCtx.fillStyle = 'white';
+        glitterCtx.beginPath();
+        glitterCtx.arc(p.x, p.y, p.size * 0.3, 0, Math.PI * 2);
+        glitterCtx.fill();
+    }
+    
+    glitterCtx.globalAlpha = 1;
+}
+
+// Start glitter system
 setTimeout(() => {
-    console.log('🌊 [FLUID] Forcing resize (500ms)...');
-    resizeCanvas();
+    initGlitter();
+    
+    function animateGlitter() {
+        drawGlitter();
+        requestAnimationFrame(animateGlitter);
+    }
+    animateGlitter();
 }, 500);
 
-setTimeout(() => {
-    console.log('🌊 [FLUID] Forcing resize (1000ms)...');
-    resizeCanvas();
-}, 1000);
+window.addEventListener('resize', resizeGlitterCanvas);
