@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Interactive Wall</title>
+<parameter name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Wall with Lightmaps</title>
 
 <style>
   body { margin: 0; overflow: hidden; background: #000; }
-  #canvas-container { width: 100%; height: 100%; }
+  #canvas-container { 
+    width: 100%; 
+    height: 100%; 
+  }
   #back-btn {
     position: absolute;
     top: 40px;
@@ -27,20 +30,22 @@
   }
   #back-btn:hover { background: rgba(255, 255, 255, 0.1); }
   
-  /* Loading overlay */
+  /* Loading overlay - HIDDEN, keep homepage visible */
   #loading {
     position: fixed;
     inset: 0;
     background: #000;
-    display: flex;
+    display: none; /* Hidden - we'll use opacity transition instead */
     justify-content: center;
     align-items: center;
+    flex-direction: column;
     color: #4CAF50;
     font-family: monospace;
     z-index: 100;
-    transition: opacity 0.5s;
+    opacity: 0;
+    pointer-events: none;
   }
-  #loading.hidden { opacity: 0; pointer-events: none; }
+  #loading-progress { margin-top: 10px; font-size: 14px; }
 </style>
 
 <!-- GSAP for animations -->
@@ -51,14 +56,14 @@
   "imports": {
     "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
     "three/addons/": "https://unpkg.com/three@0.152.2/examples/jsm/",
-    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
+    "lil-gui": "https://unpkg.com/lil-gui@0.18.1/dist/lil-gui.esm.min.js"
   }
 }
 </script>
 </head>
 <body>
 
-<div id="loading">LOADING SCENE...</div>
 <div id="canvas-container"></div>
 <button id="back-btn">← BACK</button>
 
@@ -66,18 +71,37 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { RectAreaLightHelper } from 'three/addons/helpers/RectAreaLightHelper.js';
+import GUI from 'lil-gui';
 
 // Configuration
 const WALL_CONFIG = {
   cols: 16,
   rows: 9,
   cubeSize: 3,
-  gap: 0,
+  gap: 0.05,
   centerY: 13.5
 };
-const GLB_PATH = 'assets/scene.glb'; // Make sure your file is here!
+const GLB_PATH = 'assets/scene.glb';
 const CAM_FOV = 23;
+
+// ============================================
+// LIGHTMAP CONFIGURATION - DISABLED
+// ============================================
+const LIGHTMAP_CONFIG = {
+  enabled: false  // Lightmaps disabled - using lights from GLB instead
+};
+
+// DEV MODE SETTINGS
+const DEV_MODE = false; // ❌ Disabled
+const devSettings = {
+  enableHDRI: false,
+  hdriIntensity: 1.0,
+  ambientIntensity: 5.0 // Your preferred value
+};
 
 // Globals
 let scene, camera, renderer, world;
@@ -88,6 +112,9 @@ let dragBody = null;
 let isDragging = false;
 let dragPlane = new THREE.Plane();
 let initialCameraPos = null;
+let gui;
+let sceneMeshes = [];
+let loadedLightmaps = {}; // Store loaded lightmap textures
 
 init();
 
@@ -109,45 +136,57 @@ async function init() {
 
   // 2. Setup Three.js Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
+  scene.background = null; // Transparent - homepage shows through
 
-  // Camera (Initial position, will be updated by GLB)
+  // Camera
   camera = new THREE.PerspectiveCamera(CAM_FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 20, 60);
+  camera.position.set(0, 15, 68); // Updated camera position
   camera.lookAt(0, WALL_CONFIG.centerY, 0);
 
   // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // Alpha = transparent
+  renderer.setClearColor(0x000000, 0); // Fully transparent background
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
-  renderer.useLegacyLights = false; // 1. Match Blender's physical light units
+  renderer.toneMappingExposure = 0.8; // Reduced from 1.0 to prevent blown out look
+  renderer.useLegacyLights = false;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 2.0); // 2. Boost default ambient
+  // Initialize RectAreaLight
+  RectAreaLightUniformsLib.init();
+
+  // Add Ambient Light for general scene illumination
+  const ambientLight = new THREE.AmbientLight(0xffffff, 5.0); // Set to 2.0 (your preferred value)
   scene.add(ambientLight);
+  console.log('✅ Ambient light added (intensity: 5.0)');
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 5.0); // 3. Boost default sun
-  dirLight.position.set(20, 30, 20);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 2048;
-  dirLight.shadow.mapSize.height = 2048;
-  dirLight.name = "DefaultDirLight";
-  scene.add(dirLight);
+  // 3. Load Lightmaps FIRST (if enabled)
+  if (LIGHTMAP_CONFIG.enabled) {
+    await loadLightmaps();
+  }
 
-  // 3. Create Environment
+  // 4. Environment (HDRI) - DISABLED
+  // Not loading HDRI - just using ambient light + baked textures + GLB lights
+
+  // 5. Create Environment
   createFloor(wallMaterial);
+  
   await createWall(wallMaterial);
+  
   await loadGLB();
   
   // Capture initial camera position for parallax
   initialCameraPos = camera.position.clone();
 
-  // 4. Interaction
+  // 6. Setup Dev Mode GUI
+  if (DEV_MODE) {
+    setupDevGUI();
+  }
+
+  // 7. Interaction
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
   window.addEventListener('mousedown', onMouseDown);
@@ -155,63 +194,309 @@ async function init() {
   window.addEventListener('mouseup', onMouseUp);
   window.addEventListener('resize', onWindowResize);
   
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'g' || e.key === 'G') {
+      if (gui) {
+        gui.show(gui._hidden);
+      }
+    }
+  });
+  
   document.getElementById('back-btn').addEventListener('click', async () => {
-    document.getElementById('back-btn').style.pointerEvents = 'none'; // Prevent double clicks
-    await resetWall();
+    document.getElementById('back-btn').style.pointerEvents = 'none';
+    await resetWall(); // Reset the wall pieces
     window.parent.postMessage('wallBackClicked', '*');
   });
 
-  // Hide loading
-  document.getElementById('loading').classList.add('hidden');
+  // Scene is ready - just notify parent (no fade, scene is already visible)
+  window.parent.postMessage('sceneReady', '*');
 
-  // 5. Start Loop
+  // 8. Start Loop
   animate();
 }
 
-function resetWall() {
-  return new Promise(resolve => {
-    const tl = gsap.timeline({
-      onComplete: resolve
+// ============================================
+// LIGHTMAP LOADING FUNCTIONS
+// ============================================
+
+async function loadLightmaps() {
+  const exrLoader = new EXRLoader();
+  const promises = [];
+  
+  console.log('🔆 Loading lightmaps...');
+  
+  for (const [key, path] of Object.entries(LIGHTMAP_CONFIG.lightmaps)) {
+    const promise = new Promise((resolve) => {
+      exrLoader.load(
+        path,
+        (texture) => {
+          // Configure lightmap texture
+          texture.mapping = THREE.UVMapping;
+          texture.colorSpace = THREE.LinearSRGBColorSpace; // IMPORTANT for lightmaps!
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = false;
+          
+          loadedLightmaps[key] = texture;
+          console.log(`✅ Loaded lightmap: ${key} from ${path}`);
+          resolve();
+        },
+        undefined,
+        (error) => {
+          console.warn(`⚠️ Could not load lightmap ${key}: ${error.message}`);
+          console.warn(`   Path: ${path}`);
+          resolve(); // Don't block on failed lightmaps
+        }
+      );
     });
+    promises.push(promise);
+  }
+  
+  await Promise.all(promises);
+  console.log(`🔆 Lightmap loading complete. Loaded ${Object.keys(loadedLightmaps).length} lightmaps.`);
+}
 
-    physicsObjects.forEach((obj) => {
-      // Stop physics forces
-      obj.body.mass = 0;
-      obj.body.updateMassProperties();
-      obj.body.velocity.set(0, 0, 0);
-      obj.body.angularVelocity.set(0, 0, 0);
+function findBestLightmapMatch(meshName) {
+  if (!LIGHTMAP_CONFIG.autoMatch) return null;
+  
+  meshName = meshName.toLowerCase();
+  
+  // Try to find the best match by checking if mesh name contains lightmap key
+  for (const key of Object.keys(loadedLightmaps)) {
+    if (meshName.includes(key.toLowerCase())) {
+      return key;
+    }
+  }
+  
+  // If no match found, use default
+  return LIGHTMAP_CONFIG.defaultLightmap;
+}
 
-      // Random delay for organic feel
-      const delay = Math.random() * 0.5;
+function applyLightmapToMesh(mesh, lightmapKey) {
+  if (!LIGHTMAP_CONFIG.enabled || !devSettings.enableLightmaps) return;
+  
+  const lightmap = loadedLightmaps[lightmapKey];
+  if (!lightmap) {
+    console.warn(`⚠️ No lightmap found for key: ${lightmapKey}`);
+    return;
+  }
+  
+  // Check if mesh has UV2 (lightmap UVs)
+  if (!mesh.geometry.attributes.uv2) {
+    console.warn(`⚠️ Mesh "${mesh.name}" has no UV2 attribute for lightmaps. Copying UV1...`);
+    // Fallback: copy UV1 to UV2 if not present
+    mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv.clone());
+  }
+  
+  // Apply lightmap to material
+  if (mesh.material) {
+    mesh.material.lightMap = lightmap;
+    mesh.material.lightMapIntensity = LIGHTMAP_CONFIG.intensity * devSettings.lightmapIntensity;
+    mesh.material.needsUpdate = true;
+    
+    console.log(`🔆 Applied lightmap "${lightmapKey}" to "${mesh.name}"`);
+  }
+}
 
-      tl.to(obj.body.position, {
-        x: obj.initialPos.x,
-        y: obj.initialPos.y,
-        z: obj.initialPos.z,
-        duration: 2,
-        ease: "power3.inOut"
-      }, delay);
-
-      tl.to(obj.body.quaternion, {
-        x: obj.initialQuat.x, y: obj.initialQuat.y, z: obj.initialQuat.z, w: obj.initialQuat.w,
-        duration: 2, ease: "power3.inOut"
-      }, delay);
-    });
+function updateLightmapSettings() {
+  // Update all materials with lightmaps
+  sceneMeshes.forEach(mesh => {
+    if (mesh.material && mesh.material.lightMap) {
+      if (devSettings.enableLightmaps) {
+        mesh.material.lightMap.needsUpdate = true;
+        mesh.material.lightMapIntensity = LIGHTMAP_CONFIG.intensity * devSettings.lightmapIntensity;
+      } else {
+        // Temporarily disable lightmap
+        mesh.material.lightMapIntensity = 0;
+      }
+      mesh.material.needsUpdate = true;
+    }
   });
 }
 
-function createFloor(material) {
-  // Physics
-  const groundShape = new CANNON.Plane();
-  const groundBody = new CANNON.Body({ mass: 0, material: material });
-  groundBody.addShape(groundShape);
-  groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-  world.addBody(groundBody);
+// ============================================
+// DEV GUI
+// ============================================
 
-  // Visual
-  const geometry = new THREE.PlaneGeometry(200, 200);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
-  const mesh = new THREE.Mesh(geometry, mat);
+function setupDevGUI() {
+  gui = new GUI({ title: 'Dev Mode - Scene Settings' });
+  
+  // Environment Controls
+  const envFolder = gui.addFolder('Environment');
+  
+  envFolder.add(devSettings, 'enableHDRI')
+    .name('Enable HDRI')
+    .onChange((value) => {
+      scene.environment = value ? scene.userData.envMap : null;
+    });
+  
+  // HDRI Intensity Control (controls the environment light itself)
+  envFolder.add(devSettings, 'hdriIntensity', 0, 3, 0.1)
+    .name('HDRI Intensity')
+    .onChange((value) => {
+      // Create a hemisphere light to simulate HDRI intensity
+      // since MeshBasicMaterial doesn't respond to environment maps
+      if (!scene.userData.hdriLight) {
+        scene.userData.hdriLight = new THREE.HemisphereLight(0xffffff, 0x444444, value);
+        scene.add(scene.userData.hdriLight);
+      } else {
+        scene.userData.hdriLight.intensity = value;
+      }
+    });
+  
+  // Ambient Light Control
+  envFolder.add(devSettings, 'ambientIntensity', 0, 2, 0.1)
+    .name('Ambient Light')
+    .onChange((value) => {
+      if (scene.userData.ambientLight) {
+        scene.userData.ambientLight.intensity = value;
+      }
+    });
+  
+  const lightControl = { disableAllLights: false };
+  envFolder.add(lightControl, 'disableAllLights')
+    .name('Disable All Lights')
+    .onChange((value) => {
+      scene.traverse(child => {
+        if (child.isLight) {
+          child.visible = !value;
+        }
+      });
+    });
+  
+  envFolder.open();
+  
+  // Info
+  const infoFolder = gui.addFolder('Info');
+  const info = {
+    'Tip': 'Press G to toggle GUI'
+  };
+  infoFolder.add(info, 'Tip').disable();
+  
+  // Texture Debug Controls
+  const texDebug = gui.addFolder('Texture Debug');
+  const texSettings = {
+    flipY: true, // Default to true since that's what works
+    'Toggle FlipY': () => {
+      texSettings.flipY = !texSettings.flipY;
+      sceneMeshes.forEach(mesh => {
+        if (mesh.material && mesh.material.map) {
+          mesh.material.map.flipY = texSettings.flipY;
+          mesh.material.map.needsUpdate = true;
+        }
+      });
+      console.log('FlipY toggled to:', texSettings.flipY);
+    }
+  };
+  texDebug.add(texSettings, 'Toggle FlipY');
+  texDebug.open();
+  
+  const debugBtn = {
+    'Log Material Info': () => {
+      console.log('\n=== MATERIAL DEBUG INFO ===');
+      sceneMeshes.slice(0, 10).forEach(mesh => {
+        console.log(`${mesh.name}:`, {
+          hasTexture: !!mesh.material.map,
+          materialType: mesh.material.type
+        });
+      });
+    }
+  };
+  infoFolder.add(debugBtn, 'Log Material Info');
+}
+
+// ============================================
+// SCENE SETUP (existing functions)
+// ============================================
+
+function loadHDRI() {
+  const hdriLoader = new RGBELoader();
+  hdriLoader.load('assets/studio.hdr', (texture) => {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = texture;
+    scene.userData.envMap = texture;
+    console.log('✅ HDRI Loaded');
+  }, undefined, (err) => {
+    console.log('ℹ️ No HDRI file - using GLB lights only');
+  });
+}
+
+async function resetWall() {
+  // STOP physics simulation during animation
+  const wasAnimating = true;
+  
+  // Animate wall pieces back to original positions
+  const animations = [];
+  
+  for (const obj of physicsObjects) {
+    // Disable physics body during animation
+    obj.body.mass = 0;
+    obj.body.updateMassProperties();
+    obj.body.velocity.set(0, 0, 0);
+    obj.body.angularVelocity.set(0, 0, 0);
+    
+    // Animate the visual mesh smoothly
+    const anim = gsap.to(obj.mesh.position, {
+      x: obj.initialPos.x,
+      y: obj.initialPos.y,
+      z: obj.initialPos.z,
+      duration: 1.5,
+      ease: 'power2.inOut',
+      onUpdate: function() {
+        // Sync physics body to animated mesh position
+        obj.body.position.set(
+          obj.mesh.position.x,
+          obj.mesh.position.y,
+          obj.mesh.position.z
+        );
+      }
+    });
+    animations.push(anim);
+    
+    // Also animate rotation
+    gsap.to(obj.mesh.quaternion, {
+      x: obj.initialQuat.x,
+      y: obj.initialQuat.y,
+      z: obj.initialQuat.z,
+      w: obj.initialQuat.w,
+      duration: 1.5,
+      ease: 'power2.inOut',
+      onUpdate: function() {
+        obj.body.quaternion.set(
+          obj.mesh.quaternion.x,
+          obj.mesh.quaternion.y,
+          obj.mesh.quaternion.z,
+          obj.mesh.quaternion.w
+        );
+      }
+    });
+  }
+  
+  // Wait for animations to complete
+  await Promise.all(animations.map(a => a.then()));
+  
+  // Re-enable physics
+  for (const obj of physicsObjects) {
+    obj.body.mass = 5;
+    obj.body.updateMassProperties();
+    obj.body.position.copy(obj.initialPos);
+    obj.body.quaternion.copy(obj.initialQuat);
+    obj.body.velocity.set(0, 0, 0);
+    obj.body.angularVelocity.set(0, 0, 0);
+  }
+}
+
+function createFloor(material) {
+  const floorShape = new CANNON.Plane();
+  const floorBody = new CANNON.Body({ mass: 0, material: material });
+  floorBody.addShape(floorShape);
+  floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+  floorBody.position.set(0, 0, 0);
+  world.addBody(floorBody);
+
+  const geo = new THREE.PlaneGeometry(200, 200);
+  const mat = new THREE.ShadowMaterial({ opacity: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.receiveShadow = true;
   scene.add(mesh);
@@ -242,15 +527,16 @@ async function createWall(material) {
     map: masterTexture, 
     bumpMap: masterTexture,
     bumpScale: 0.2,
-    roughness: 0.4, 
-    metalness: 0.1 
+    roughness: 0.7, 
+    metalness: 0.1,
+    envMapIntensity: 0.5
   });
 
-  // Back Barrier (Invisible) to prevent falling backwards
+  // Back Barrier
   const barrierShape = new CANNON.Plane();
   const barrierBody = new CANNON.Body({ mass: 0 });
   barrierBody.addShape(barrierShape);
-  barrierBody.position.set(0, 0, -cubeSize/2 - 0.05); // Just behind the cubes
+  barrierBody.position.set(0, 0, -cubeSize/2 - 0.05);
   world.addBody(barrierBody);
 
   for (let r = 0; r < rows; r++) {
@@ -278,6 +564,7 @@ async function createWall(material) {
       const mesh = new THREE.Mesh(meshGeometry, wallVisualMaterial);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.name = `wall_cube_${r}_${c}`;
       scene.add(mesh);
 
       // Edges
@@ -290,120 +577,183 @@ async function createWall(material) {
         initialPos: new CANNON.Vec3().copy(body.position),
         initialQuat: new CANNON.Quaternion().copy(body.quaternion)
       });
+      
+      // Apply lightmap if available
+      applyLightmapToMesh(mesh, 'wall');
     }
   }
 }
 
 async function loadGLB() {
   const loader = new GLTFLoader();
-  let glbLightsFound = 0;
+  const exrLoader = new EXRLoader();
+
+  // Load the baked textures as base textures for MeshBasicMaterial
+  const bakedTextures = {};
+  
+  console.log('🎨 Loading baked textures...');
+  try {
+    const texturePaths = {
+      'posters': 'Posters_Bake1_CyclesBake_COMBINED.exr',
+      'stuff': 'STUFF_Bake2_CyclesBake_COMBINED.exr',
+      'small_stuff': 'small stuff_Bake2_CyclesBake_COMBINED.exr',
+      'walls': 'wallz_Bake2_CyclesBake_COMBINED.exr'
+    };
+    
+    for (const [key, path] of Object.entries(texturePaths)) {
+      try {
+        const texture = await new Promise((resolve, reject) => {
+          exrLoader.load(path, resolve, undefined, reject);
+        });
+        // EXR files should be Linear, not sRGB!
+        texture.colorSpace = THREE.LinearSRGBColorSpace;
+        texture.flipY = true; // ✅ Set to true for proper alignment
+        texture.channel = 0;
+        bakedTextures[key] = texture;
+        console.log(`  ✅ Loaded ${key} texture`);
+      } catch (err) {
+        console.log(`  ⚠️ Couldn't load ${key} texture - will use material color`);
+      }
+    }
+  } catch (err) {
+    console.log('  ℹ️ No baked textures found - using GLB materials');
+  }
 
   try {
-    const gltf = await new Promise((resolve, reject) => loader.load(GLB_PATH, resolve, undefined, reject));
+    const gltf = await new Promise((resolve, reject) => {
+      loader.load(
+        GLB_PATH, 
+        resolve, 
+        undefined, 
+        (error) => {
+          console.error('GLB loading error:', error);
+          reject(error);
+        }
+      );
+    });
     const model = gltf.scene;
     
-    // Enable shadows
+    // Debug: Log what we got from the GLB
+    console.log('📦 GLB Info:');
+    console.log('  - Scenes:', gltf.scenes?.length || 0);
+    console.log('  - Meshes:', gltf.scene.children.length);
+    console.log('  - Textures:', gltf.textures?.length || 0);
+    console.log('  - Materials:', gltf.materials?.length || 0);
+    
     model.traverse(child => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        child.frustumCulled = false;
         
-        // Fix textures and normal maps from Blender
-        if (child.material.map) child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        // Use MeshBasicMaterial for baked textures (no lighting needed!)
+        const meshName = child.name.toLowerCase();
+        let bakedTexture = null;
         
-        if (child.material.normalMap) {
-            child.material.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            // Compute tangents if missing (crucial for normal maps to work correctly)
-            if (!child.geometry.attributes.tangent) {
-                BufferGeometryUtils.computeTangents(child.geometry);
-            }
+        // Find matching baked texture
+        if (meshName.includes('posters') && bakedTextures.posters) {
+          bakedTexture = bakedTextures.posters;
+        } else if (meshName.includes('small_stuff') && bakedTextures.small_stuff) {
+          bakedTexture = bakedTextures.small_stuff;
+        } else if (meshName.includes('stuff') && bakedTextures.stuff) {
+          bakedTexture = bakedTextures.stuff;
+        } else if (meshName.includes('wall') && bakedTextures.walls) {
+          bakedTexture = bakedTextures.walls;
         }
         
+        if (bakedTexture) {
+          // Texture is already set to flipY = true from loading
+          
+          child.material = new THREE.MeshBasicMaterial({
+            map: bakedTexture
+          });
+          
+          console.log(`🎨 Applied baked texture to ${child.name}`);
+        } else {
+          // No baked texture - create default material
+          if (!child.material) {
+            child.material = new THREE.MeshStandardMaterial({
+              color: 0xcccccc,
+              roughness: 0.7,
+              metalness: 0.0
+            });
+          }
+        }
+        
+        child.material.side = THREE.DoubleSide;
+
+        sceneMeshes.push(child);
+        
         // Check for camera sphere
-        if (child.name && child.name.toLowerCase().includes('sphere')) {
-            console.log('📍 Found camera sphere, updating camera...');
-            const pos = new THREE.Vector3();
-            child.getWorldPosition(pos);
-            camera.position.copy(pos);
-            camera.lookAt(0, WALL_CONFIG.centerY, 0);
-            child.visible = false; // Hide the marker
+        if (meshName.includes('sphere')) {
+          console.log('📍 Found camera sphere, updating camera...');
+          const pos = new THREE.Vector3();
+          child.getWorldPosition(pos);
+          camera.position.copy(pos);
+          camera.lookAt(0, WALL_CONFIG.centerY, 0);
+          child.visible = false;
         }
       }
       
-      // Handle Lights from GLB
+      // Handle Lights
       if (child.isLight) {
-        glbLightsFound++;
         console.log(`💡 Found GLB Light: ${child.name} (Type: ${child.type})`);
-        
         child.castShadow = true;
         child.shadow.mapSize.width = 2048;
         child.shadow.mapSize.height = 2048;
-        child.shadow.bias = -0.001;
+        child.shadow.normalBias = 0.02;
         
-        // Fix Spotlights: They need their target added to the scene to point correctly
         if (child.isSpotLight && child.target) {
-            model.add(child.target);
+          model.add(child.target);
         }
       }
     });
     
-    model.position.set(0, 0, -1.9); // Positioned behind the wall
+    model.position.set(0, 0, -1.9);
     scene.add(model);
-    console.log('✅ GLB Loaded');
-    
-    // If we found lights in the GLB, remove the default one so we can see them
-    if (glbLightsFound > 0) {
-        console.log(`🔦 Using ${glbLightsFound} GLB lights. Removing default light.`);
-        const defaultLight = scene.getObjectByName("DefaultDirLight");
-        if (defaultLight) scene.remove(defaultLight);
-    }
+    console.log('✅ GLB Loaded successfully');
   } catch (e) {
-    console.warn('⚠️ Could not load GLB (assets/scene.glb). Using default setup.');
+    console.error("GLB Load Error:", e);
+    console.warn('⚠️ Could not load GLB. Using default setup.');
   }
 }
 
-function onMouseDown(event) {
-  // Only handle clicks on the canvas (ignore buttons)
-  if (event.target !== renderer.domElement) return;
+// ============================================
+// INTERACTION
+// ============================================
 
-  // Clear any existing drag to prevent stuck states
+function onMouseDown(event) {
+  if (event.target !== renderer.domElement) return;
   if (isDragging) onMouseUp();
 
-  // Calculate mouse position
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-
-  // Check intersections (recursive to catch edges/children)
   const intersects = raycaster.intersectObjects(physicsObjects.map(o => o.mesh), true);
 
   if (intersects.length > 0) {
     const hit = intersects[0];
-    // Find object, checking mesh or parent (in case of edges)
     const obj = physicsObjects.find(o => o.mesh === hit.object || o.mesh === hit.object.parent);
     
     if (obj) {
       isDragging = true;
-      obj.body.wakeUp(); // Wake up the body so it responds
+      obj.body.wakeUp();
       
-      // Create kinematic body for mouse
       const dragShape = new CANNON.Sphere(0.1);
       dragBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
       dragBody.addShape(dragShape);
-      dragBody.collisionFilterGroup = 0; // Disable collisions for the drag handle
+      dragBody.collisionFilterGroup = 0;
       dragBody.collisionFilterMask = 0;
       dragBody.position.copy(hit.point);
       world.addBody(dragBody);
 
-      // Create constraint
       const localPivot = new CANNON.Vec3();
       obj.body.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z), localPivot);
       
       dragConstraint = new CANNON.PointToPointConstraint(obj.body, localPivot, dragBody, new CANNON.Vec3(0,0,0));
       world.addConstraint(dragConstraint);
 
-      // Setup drag plane perpendicular to camera
       dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), hit.point);
     }
   }
@@ -443,8 +793,8 @@ function animate() {
   
   // Subtle Camera Parallax
   if (initialCameraPos && !isDragging) {
-    const targetX = initialCameraPos.x + mouse.x * 5; // Change 5 to adjust Left/Right intensity
-    const targetY = initialCameraPos.y + mouse.y * 3; // Change 3 to adjust Up/Down intensity
+    const targetX = initialCameraPos.x + mouse.x * 5;
+    const targetY = initialCameraPos.y + mouse.y * 3;
     camera.position.x += (targetX - camera.position.x) * 0.05;
     camera.position.y += (targetY - camera.position.y) * 0.05;
     camera.lookAt(0, WALL_CONFIG.centerY, 0);
