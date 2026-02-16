@@ -57,7 +57,7 @@
     "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
     "three/addons/": "https://unpkg.com/three@0.152.2/examples/jsm/",
     "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
-    "lil-gui": "https://unpkg.com/lil-gui@0.18.1/dist/lil-gui.esm.min.js"
+    "postprocessing": "https://unpkg.com/postprocessing@6.36.3/build/index.js"
   }
 }
 </script>
@@ -75,7 +75,9 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { RectAreaLightHelper } from 'three/addons/helpers/RectAreaLightHelper.js';
-import GUI from 'lil-gui';
+
+// 🌟 POST-PROCESSING IMPORTS
+import { EffectComposer, RenderPass } from 'postprocessing';
 
 // Configuration
 const WALL_CONFIG = {
@@ -95,12 +97,44 @@ const LIGHTMAP_CONFIG = {
   enabled: false  // Lightmaps disabled - using lights from GLB instead
 };
 
-// DEV MODE SETTINGS
-const DEV_MODE = false; // ❌ Disabled
-const devSettings = {
-  enableHDRI: false,
-  hdriIntensity: 1.0,
-  ambientIntensity: 5.0 // Your preferred value
+// 🎨 POST-PROCESSING SETTINGS - ALL DISABLED
+const POST_FX_CONFIG = {
+  enabled: false,
+  bloom: {
+    enabled: false,
+    strength: 0.4,
+    radius: 0.5,
+    threshold: 0.85
+  },
+  ssao: {
+    enabled: false,
+    kernelRadius: 8,
+    minDistance: 0.005,
+    maxDistance: 0.1,
+    intensity: 1.0
+  },
+  godRays: {
+    enabled: false,
+    density: 0.96,
+    weight: 0.3,
+    decay: 0.95,
+    exposure: 0.3,
+    samples: 60
+  },
+  volumetricLight: {
+    enabled: false,
+    intensity: 2.0,
+    color: 0xfff4e6,
+    opacity: 0.3
+  },
+  fxaa: {
+    enabled: false
+  },
+  vignette: {
+    enabled: false,
+    darkness: 0.5,
+    offset: 1.0
+  }
 };
 
 // Globals
@@ -112,9 +146,73 @@ let dragBody = null;
 let isDragging = false;
 let dragPlane = new THREE.Plane();
 let initialCameraPos = null;
-let gui;
 let sceneMeshes = [];
 let loadedLightmaps = {}; // Store loaded lightmap textures
+
+// 🌟 POST-PROCESSING GLOBALS
+let composer, godRaysPass;
+let godRaysLight;
+let volumetricLights = []; // Array of volumetric light beam meshes
+let blockerPlane = null; // Plane to block god rays
+
+// 🎯 HOVER EFFECT GLOBALS
+let hoveredObject = null;
+let originalMaterials = new Map(); // Store original materials
+let hoverAnimationState = {
+  isHovering: false,
+  object: null,
+  originalPosition: null,
+  targetOffset: { y: 0.5 }, // How high to float
+  currentOffset: { x: 0, y: 0, z: 0 },
+  swayTime: 0,
+  lerpSpeed: 0.05 // Smooth transition speed
+};
+
+// 🌍 GLOBE HOVER STATE
+let globeHoverState = {
+  isHovering: false,
+  object: null,
+  rotationSpeed: 0,
+  targetRotationSpeed: 2.0, // Speed when hovering
+  
+  // 🎨 ADJUST THESE TO FIX THE TILT ANGLE!
+  tiltX: -20,  // Tilt forward/backward (negative = forward, positive = backward)
+  tiltY: 0,    // Tilt left/right
+  tiltZ: 0,    // Roll/twist
+  
+  tiltApplied: false // Track if we've set the initial tilt
+};
+
+// 🪑 FURNITURE 1 - SPINNING (furniture_Baked001)
+let furniture1State = {
+  isHovering: false,
+  object: null,
+  rotationSpeed: 0,
+  targetRotationSpeed: 2.0 // Spin speed
+};
+
+// 🪑 FURNITURE 2 - HOVER & TILT (furniture_Baked002)
+let furniture2State = {
+  isHovering: false,
+  object: null,
+  originalPosition: null,
+  currentOffset: { x: 0, y: 0, z: 0 },
+  targetOffset: { y: 0.3 }, // Float height
+  tiltTime: 0,
+  lerpSpeed: 0.05
+};
+
+// 🎸 GUITAR AUDIO (Web Audio API)
+let audioContext = null;
+let guitarChordPlaying = false;
+
+// ⚡ PERFORMANCE OPTIMIZATION
+let hoverCheckCounter = 0;
+let hoverCheckInterval = 3; // Only check hover every N frames
+let hoverTargetObject = null; // Cache the specific object to raycast against
+let globeTargetObject = null; // Cache globe object
+let furniture1Object = null; // Cache furniture 1 (spinning)
+let furniture2Object = null; // Cache furniture 2 (tilting)
 
 init();
 
@@ -125,12 +223,12 @@ async function init() {
   world.broadphase = new CANNON.NaiveBroadphase();
   world.solver.iterations = 20;
 
-  // Materials
+  // Materials - BRICK-LIKE PHYSICS
   const wallMaterial = new CANNON.Material('wall');
   const ballMaterial = new CANNON.Material('ball');
   const wallBallContact = new CANNON.ContactMaterial(wallMaterial, ballMaterial, {
-    friction: 0.1,
-    restitution: 0.5
+    friction: 0.6,      // Was 0.1, now 0.6 (more friction, less sliding)
+    restitution: 0.2    // Was 0.5, now 0.2 (less bouncy, more thud)
   });
   world.addContactMaterial(wallBallContact);
 
@@ -155,6 +253,16 @@ async function init() {
   renderer.useLegacyLights = false;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
+  // Add WebGL context loss/restore handlers
+  renderer.domElement.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    console.error('⚠️ WebGL context lost! Stopping animation...');
+  }, false);
+
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    console.log('✅ WebGL context restored!');
+  }, false);
+
   // Initialize RectAreaLight
   RectAreaLightUniformsLib.init();
 
@@ -168,8 +276,8 @@ async function init() {
     await loadLightmaps();
   }
 
-  // 4. Environment (HDRI) - DISABLED
-  // Not loading HDRI - just using ambient light + baked textures + GLB lights
+  // 4. Environment (HDRI) - ENABLED
+  await loadHDRI();
 
   // 5. Create Environment
   createFloor(wallMaterial);
@@ -181,11 +289,6 @@ async function init() {
   // Capture initial camera position for parallax
   initialCameraPos = camera.position.clone();
 
-  // 6. Setup Dev Mode GUI
-  if (DEV_MODE) {
-    setupDevGUI();
-  }
-
   // 7. Interaction
   raycaster = new THREE.Raycaster();
   mouse = new THREE.Vector2();
@@ -194,19 +297,14 @@ async function init() {
   window.addEventListener('mouseup', onMouseUp);
   window.addEventListener('resize', onWindowResize);
   
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'g' || e.key === 'G') {
-      if (gui) {
-        gui.show(gui._hidden);
-      }
-    }
-  });
-  
   document.getElementById('back-btn').addEventListener('click', async () => {
     document.getElementById('back-btn').style.pointerEvents = 'none';
     await resetWall(); // Reset the wall pieces
     window.parent.postMessage('wallBackClicked', '*');
   });
+
+  // 🌟 Setup God Rays
+  await setupGodRaysSystem();
 
   // Scene is ready - just notify parent (no fade, scene is already visible)
   window.parent.postMessage('sceneReady', '*');
@@ -273,7 +371,7 @@ function findBestLightmapMatch(meshName) {
 }
 
 function applyLightmapToMesh(mesh, lightmapKey) {
-  if (!LIGHTMAP_CONFIG.enabled || !devSettings.enableLightmaps) return;
+  if (!LIGHTMAP_CONFIG.enabled) return;
   
   const lightmap = loadedLightmaps[lightmapKey];
   if (!lightmap) {
@@ -291,118 +389,11 @@ function applyLightmapToMesh(mesh, lightmapKey) {
   // Apply lightmap to material
   if (mesh.material) {
     mesh.material.lightMap = lightmap;
-    mesh.material.lightMapIntensity = LIGHTMAP_CONFIG.intensity * devSettings.lightmapIntensity;
+    mesh.material.lightMapIntensity = 1.0;
     mesh.material.needsUpdate = true;
     
     console.log(`🔆 Applied lightmap "${lightmapKey}" to "${mesh.name}"`);
   }
-}
-
-function updateLightmapSettings() {
-  // Update all materials with lightmaps
-  sceneMeshes.forEach(mesh => {
-    if (mesh.material && mesh.material.lightMap) {
-      if (devSettings.enableLightmaps) {
-        mesh.material.lightMap.needsUpdate = true;
-        mesh.material.lightMapIntensity = LIGHTMAP_CONFIG.intensity * devSettings.lightmapIntensity;
-      } else {
-        // Temporarily disable lightmap
-        mesh.material.lightMapIntensity = 0;
-      }
-      mesh.material.needsUpdate = true;
-    }
-  });
-}
-
-// ============================================
-// DEV GUI
-// ============================================
-
-function setupDevGUI() {
-  gui = new GUI({ title: 'Dev Mode - Scene Settings' });
-  
-  // Environment Controls
-  const envFolder = gui.addFolder('Environment');
-  
-  envFolder.add(devSettings, 'enableHDRI')
-    .name('Enable HDRI')
-    .onChange((value) => {
-      scene.environment = value ? scene.userData.envMap : null;
-    });
-  
-  // HDRI Intensity Control (controls the environment light itself)
-  envFolder.add(devSettings, 'hdriIntensity', 0, 3, 0.1)
-    .name('HDRI Intensity')
-    .onChange((value) => {
-      // Create a hemisphere light to simulate HDRI intensity
-      // since MeshBasicMaterial doesn't respond to environment maps
-      if (!scene.userData.hdriLight) {
-        scene.userData.hdriLight = new THREE.HemisphereLight(0xffffff, 0x444444, value);
-        scene.add(scene.userData.hdriLight);
-      } else {
-        scene.userData.hdriLight.intensity = value;
-      }
-    });
-  
-  // Ambient Light Control
-  envFolder.add(devSettings, 'ambientIntensity', 0, 2, 0.1)
-    .name('Ambient Light')
-    .onChange((value) => {
-      if (scene.userData.ambientLight) {
-        scene.userData.ambientLight.intensity = value;
-      }
-    });
-  
-  const lightControl = { disableAllLights: false };
-  envFolder.add(lightControl, 'disableAllLights')
-    .name('Disable All Lights')
-    .onChange((value) => {
-      scene.traverse(child => {
-        if (child.isLight) {
-          child.visible = !value;
-        }
-      });
-    });
-  
-  envFolder.open();
-  
-  // Info
-  const infoFolder = gui.addFolder('Info');
-  const info = {
-    'Tip': 'Press G to toggle GUI'
-  };
-  infoFolder.add(info, 'Tip').disable();
-  
-  // Texture Debug Controls
-  const texDebug = gui.addFolder('Texture Debug');
-  const texSettings = {
-    flipY: true, // Default to true since that's what works
-    'Toggle FlipY': () => {
-      texSettings.flipY = !texSettings.flipY;
-      sceneMeshes.forEach(mesh => {
-        if (mesh.material && mesh.material.map) {
-          mesh.material.map.flipY = texSettings.flipY;
-          mesh.material.map.needsUpdate = true;
-        }
-      });
-      console.log('FlipY toggled to:', texSettings.flipY);
-    }
-  };
-  texDebug.add(texSettings, 'Toggle FlipY');
-  texDebug.open();
-  
-  const debugBtn = {
-    'Log Material Info': () => {
-      console.log('\n=== MATERIAL DEBUG INFO ===');
-      sceneMeshes.slice(0, 10).forEach(mesh => {
-        console.log(`${mesh.name}:`, {
-          hasTexture: !!mesh.material.map,
-          materialType: mesh.material.type
-        });
-      });
-    }
-  };
-  infoFolder.add(debugBtn, 'Log Material Info');
 }
 
 // ============================================
@@ -477,7 +468,7 @@ async function resetWall() {
   
   // Re-enable physics
   for (const obj of physicsObjects) {
-    obj.body.mass = 5;
+    obj.body.mass = 25; // Match the brick mass
     obj.body.updateMassProperties();
     obj.body.position.copy(obj.initialPos);
     obj.body.quaternion.copy(obj.initialQuat);
@@ -544,12 +535,12 @@ async function createWall(material) {
       const x = startX + c * (cubeSize + gap);
       const y = startY + r * (cubeSize + gap);
       
-      // Physics
-      const body = new CANNON.Body({ mass: 5, material: material });
+      // Physics - BRICK-LIKE: Heavy mass, less bouncy
+      const body = new CANNON.Body({ mass: 25, material: material }); // Was 5, now 25 (5x heavier!)
       body.addShape(shape);
       body.position.set(x, y, 0);
-      body.linearDamping = 0.1;
-      body.angularDamping = 0.1;
+      body.linearDamping = 0.4;  // Was 0.1, now 0.4 (slows down faster)
+      body.angularDamping = 0.3; // Was 0.1, now 0.3 (less spinning)
       world.addBody(body);
 
       // Visual
@@ -594,10 +585,11 @@ async function loadGLB() {
   console.log('🎨 Loading baked textures...');
   try {
     const texturePaths = {
-      'posters': 'Posters_Bake1_CyclesBake_COMBINED.exr',
-      'stuff': 'STUFF_Bake2_CyclesBake_COMBINED.exr',
-      'small_stuff': 'small stuff_Bake2_CyclesBake_COMBINED.exr',
-      'walls': 'wallz_Bake2_CyclesBake_COMBINED.exr'
+      'posters': 'assets/textures/Posters_Bake1_CyclesBake_COMBINED.exr',
+      'furniture': 'assets/textures/furnitrure_Bake2_CyclesBake_COMBINED.exr',
+      'stuff': 'assets/textures/STUFF_Bake2_CyclesBake_COMBINED.exr',
+      'decorations': 'assets/textures/decorations_Bake2_CyclesBake_COMBINED.exr',
+      'walls': 'assets/textures/wallz_Bake2_CyclesBake_COMBINED.exr'
     };
     
     for (const [key, path] of Object.entries(texturePaths)) {
@@ -607,8 +599,11 @@ async function loadGLB() {
         });
         // EXR files should be Linear, not sRGB!
         texture.colorSpace = THREE.LinearSRGBColorSpace;
-        texture.flipY = true; // ✅ Set to true for proper alignment
+        texture.flipY = true; // ⚠️ Try toggling this if texture is upside down!
         texture.channel = 0;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.needsUpdate = true;
         bakedTextures[key] = texture;
         console.log(`  ✅ Loaded ${key} texture`);
       } catch (err) {
@@ -650,22 +645,48 @@ async function loadGLB() {
         const meshName = child.name.toLowerCase();
         let bakedTexture = null;
         
-        // Find matching baked texture
+        console.log(`🔍 Checking mesh: "${child.name}" (lowercase: "${meshName}")`);
+        
+        // Find matching baked texture (check specific keywords before generic ones)
         if (meshName.includes('posters') && bakedTextures.posters) {
           bakedTexture = bakedTextures.posters;
-        } else if (meshName.includes('small_stuff') && bakedTextures.small_stuff) {
-          bakedTexture = bakedTextures.small_stuff;
+          console.log(`  ✅ Matched to POSTERS texture`);
+        } else if (meshName.includes('furnitrure') && bakedTextures.furniture) {
+          bakedTexture = bakedTextures.furniture;
+          console.log(`  ✅ Matched to FURNITURE texture`);
+        } else if (meshName.includes('decorations') && bakedTextures.decorations) {
+          bakedTexture = bakedTextures.decorations;
+          console.log(`  ✅ Matched to decorations texture`);
         } else if (meshName.includes('stuff') && bakedTextures.stuff) {
           bakedTexture = bakedTextures.stuff;
+          console.log(`  ✅ Matched to STUFF texture`);
         } else if (meshName.includes('wall') && bakedTextures.walls) {
           bakedTexture = bakedTextures.walls;
+          console.log(`  ✅ Matched to WALLS texture`);
+        } else {
+          console.log(`  ⚠️ No texture match found`);
         }
         
         if (bakedTexture) {
           // Texture is already set to flipY = true from loading
           
+          // Clone the texture for this mesh so we can adjust UVs independently
+          const texClone = bakedTexture.clone();
+          texClone.needsUpdate = true;
+          
+          // UV transform - adjust these if texture scale is wrong
+          // Default is 1,1 (no repeat). Increase to tile more, decrease to tile less
+          texClone.repeat.set(1, 1);
+          texClone.offset.set(0, 0);
+          
+          // FIX: Use UV2 (LightMapUV) for 'stuff' mesh if available
+          if (bakedTexture === bakedTextures.stuff && child.geometry.attributes.uv2) {
+            console.log(`  🔄 Swapping UVs for ${child.name} to use LightMapUV (uv2)`);
+            child.geometry.setAttribute('uv', child.geometry.attributes.uv2);
+          }
+          
           child.material = new THREE.MeshBasicMaterial({
-            map: bakedTexture
+            map: texClone
           });
           
           console.log(`🎨 Applied baked texture to ${child.name}`);
@@ -712,10 +733,355 @@ async function loadGLB() {
     model.position.set(0, 0, -1.9);
     scene.add(model);
     console.log('✅ GLB Loaded successfully');
+    
+    // 🔍 DEBUG: List all individual objects
+    console.log('');
+    console.log('═══════════════════════════════════════════');
+    console.log('📋 INDIVIDUAL OBJECTS IN GLB:');
+    console.log('═══════════════════════════════════════════');
+    console.log(`Total meshes found: ${sceneMeshes.length}`);
+    console.log('');
+    sceneMeshes.forEach((mesh, index) => {
+      console.log(`${index + 1}. Name: "${mesh.name}"`);
+      console.log(`   Type: ${mesh.type}`);
+      console.log(`   Position: (${mesh.position.x.toFixed(2)}, ${mesh.position.y.toFixed(2)}, ${mesh.position.z.toFixed(2)})`);
+      console.log(`   Has Material: ${!!mesh.material}`);
+      console.log('');
+    });
+    console.log('═══════════════════════════════════════════');
+    console.log('💡 TIP: You can access any object by name using:');
+    console.log('   sceneMeshes.find(m => m.name === "YourObjectName")');
+    console.log('═══════════════════════════════════════════');
+    console.log('');
+    
+    // ⚡ OPTIMIZATION: Cache the hover target objects
+    hoverTargetObject = sceneMeshes.find(m => m.name === "stuff_Baked001");
+    if (hoverTargetObject) {
+      console.log('✅ Hover target cached:', hoverTargetObject.name);
+    } else {
+      console.warn('⚠️ Hover target "stuff_Baked001" not found');
+    }
+    
+    globeTargetObject = sceneMeshes.find(m => m.name === "decorations_Baked002");
+    if (globeTargetObject) {
+      console.log('✅ Globe target cached:', globeTargetObject.name);
+      globeHoverState.object = globeTargetObject;
+    } else {
+      console.warn('⚠️ Globe target "decorations_Baked002" not found');
+    }
+    
+    furniture1Object = sceneMeshes.find(m => m.name === "furnitrure_Baked001");
+    if (furniture1Object) {
+      console.log('✅ Furniture 1 (spinning) cached:', furniture1Object.name);
+      furniture1State.object = furniture1Object;
+    } else {
+      console.warn('⚠️ Furniture 1 "furnitrure_Baked001" not found');
+    }
+    
+    furniture2Object = sceneMeshes.find(m => m.name === "furnitrure_Baked002");
+    if (furniture2Object) {
+      console.log('✅ Furniture 2 (tilting) cached:', furniture2Object.name);
+      furniture2State.object = furniture2Object;
+      furniture2State.originalPosition = furniture2Object.position.clone();
+    } else {
+      console.warn('⚠️ Furniture 2 "furnitrure_Baked002" not found');
+    }
   } catch (e) {
     console.error("GLB Load Error:", e);
     console.warn('⚠️ Could not load GLB. Using default setup.');
   }
+}
+
+// ============================================
+// 🌟 VOLUMETRIC LIGHT BEAMS
+// ============================================
+
+function setupVolumetricLights() {
+  console.log('☀️ Setting up volumetric light beams...');
+  
+  // Create realistic window light beams (like dust particles showing sunlight)
+  const beamGeometry = new THREE.CylinderGeometry(0.1, 4, 30, 32, 1, true);
+  const beamMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      lightColor: { value: new THREE.Color(POST_FX_CONFIG.volumetricLight.color) },
+      intensity: { value: POST_FX_CONFIG.volumetricLight.intensity },
+      opacity: { value: POST_FX_CONFIG.volumetricLight.opacity }
+    },
+    vertexShader: `
+      varying vec3 vPosition;
+      varying vec3 vNormal;
+      void main() {
+        vPosition = position;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 lightColor;
+      uniform float intensity;
+      uniform float opacity;
+      varying vec3 vPosition;
+      varying vec3 vNormal;
+      
+      void main() {
+        // Fade from bright at top to transparent at bottom
+        float heightFade = smoothstep(-15.0, 15.0, vPosition.y);
+        
+        // Fade at edges (radial fade)
+        float dist = length(vPosition.xz);
+        float radialFade = 1.0 - smoothstep(0.0, 4.0, dist);
+        
+        // View angle fade (more visible from side)
+        float viewFade = abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+        viewFade = pow(1.0 - viewFade, 2.0);
+        
+        float finalAlpha = heightFade * radialFade * viewFade * opacity;
+        
+        gl_FragColor = vec4(lightColor * intensity, finalAlpha);
+      }
+    `
+  });
+  
+  // Create multiple light beams from different window positions
+  const lightPositions = [
+    { x: -20, y: 25, z: -5, rotation: 0.3 },   // Left window
+    { x: -15, y: 25, z: -8, rotation: 0.2 },   // Left window 2
+    { x: 20, y: 25, z: -5, rotation: -0.3 },   // Right window
+    { x: 15, y: 25, z: -8, rotation: -0.2 }    // Right window 2
+  ];
+  
+  lightPositions.forEach((pos, i) => {
+    const beam = new THREE.Mesh(beamGeometry, beamMaterial.clone());
+    beam.position.set(pos.x, pos.y, pos.z);
+    beam.rotation.x = Math.PI / 2;  // Point downward
+    beam.rotation.z = pos.rotation;  // Slight angle
+    scene.add(beam);
+    volumetricLights.push(beam);
+    console.log(`  ✅ Added volumetric light beam ${i + 1}`);
+  });
+  
+  console.log('✨ Volumetric lights setup complete!');
+}
+
+// ============================================
+// 🌟 POST-PROCESSING SETUP
+// ============================================
+
+async function setupGodRaysSystem() {
+  console.log('🌅 Setting up God Rays...');
+
+  // HARDCODED GOD RAYS CONFIGURATION
+  // Change these values to adjust god rays
+  const GOD_RAYS_CONFIG = {
+    // Light color - RGB format (0.0 to 1.0) - Click on values in VS Code for color picker!
+    color: [0, 0.5, 1],  // [R, G, B] - Warm white/yellow
+    intensity: 0.7,
+    
+    // Light position
+    lightX: 46.1,
+    lightY: 26.3,
+    lightZ: -200,
+    
+    // Ray properties
+    density: 0.0125,
+    maxDensity: 0.7,
+    edgeStrength: 3,
+    
+    // Blocker plane (to prevent ray leaking)
+    blockerX: -200,
+    blockerY: 13.5,
+    blockerZ: -5,
+    blockerWidth: 20,
+    blockerHeight: 20,
+    blockerRotY: 90
+  };
+
+  // Create color from RGB array
+  const godRayColor = new THREE.Color(...GOD_RAYS_CONFIG.color);
+
+  // 1. Create Directional Light for God Rays
+  godRaysLight = new THREE.DirectionalLight(godRayColor, GOD_RAYS_CONFIG.intensity);
+  godRaysLight.position.set(GOD_RAYS_CONFIG.lightX, GOD_RAYS_CONFIG.lightY, GOD_RAYS_CONFIG.lightZ);
+  godRaysLight.castShadow = true;
+  godRaysLight.shadow.mapSize.width = 2048;
+  godRaysLight.shadow.mapSize.height = 2048;
+  godRaysLight.shadow.camera.near = 0.5;
+  godRaysLight.shadow.camera.far = 500;
+  godRaysLight.shadow.camera.left = -50;
+  godRaysLight.shadow.camera.right = 50;
+  godRaysLight.shadow.camera.top = 50;
+  godRaysLight.shadow.camera.bottom = -50;
+  scene.add(godRaysLight);
+
+  // 2. Setup Composer
+  composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+
+  // 3. Import and Setup GodraysPass
+  const GodraysPassModule = await import('https://unpkg.com/three-good-godrays@0.8.1/build/three-good-godrays.esm.js');
+  const { GodraysPass } = GodraysPassModule;
+
+  godRaysPass = new GodraysPass(godRaysLight, camera, {
+    density: GOD_RAYS_CONFIG.density,
+    maxDensity: GOD_RAYS_CONFIG.maxDensity,
+    edgeStrength: GOD_RAYS_CONFIG.edgeStrength,
+    edgeRadius: 2,
+    distanceAttenuation: 2,
+    color: godRayColor,  // Use the converted RGB color
+    raymarchSteps: 70,
+    blur: true,
+    gammaCorrection: true
+  });
+  composer.addPass(godRaysPass);
+
+  // 4. Create Blocker Plane (to block god rays from leaking)
+  createBlockerPlane(GOD_RAYS_CONFIG);
+  
+  console.log('✅ God Rays setup complete!');
+}
+
+function createBlockerPlane(config) {
+  // Create a plane that casts shadows to block god rays
+  const blockerGeo = new THREE.PlaneGeometry(config.blockerWidth, config.blockerHeight);
+  const blockerMat = new THREE.MeshStandardMaterial({
+    color: 0x000000,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0  // Invisible but casts shadows
+  });
+  
+  blockerPlane = new THREE.Mesh(blockerGeo, blockerMat);
+  blockerPlane.castShadow = true;
+  blockerPlane.receiveShadow = false;
+  blockerPlane.position.set(config.blockerX, config.blockerY, config.blockerZ);
+  blockerPlane.rotation.y = config.blockerRotY * Math.PI / 180;
+  blockerPlane.visible = true;
+  scene.add(blockerPlane);
+  
+  console.log('🚧 Blocker plane created');
+}
+
+// ============================================
+// 🎨 HOVER EFFECT WITH RIM GLOW
+// ============================================
+
+function createRimGlowMaterial(originalMaterial) {
+  // Create a shader material with rim lighting effect
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      baseTexture: { value: originalMaterial.map },
+      glowColor: { value: new THREE.Color(0x00ffff) }, // Cyan glow - change this!
+      rimPower: { value: 2.5 },
+      glowIntensity: { value: 1.5 }
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      varying vec2 vUv;
+      
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D baseTexture;
+      uniform vec3 glowColor;
+      uniform float rimPower;
+      uniform float glowIntensity;
+      
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      varying vec2 vUv;
+      
+      void main() {
+        // Sample the original texture
+        vec4 texColor = texture2D(baseTexture, vUv);
+        
+        // Calculate rim lighting
+        vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
+        float rimFactor = 1.0 - max(0.0, dot(normal, viewDir));
+        rimFactor = pow(rimFactor, rimPower);
+        
+        // Combine texture with rim glow
+        vec3 glow = glowColor * rimFactor * glowIntensity;
+        vec3 finalColor = texColor.rgb + glow;
+        
+        gl_FragColor = vec4(finalColor, texColor.a);
+      }
+    `,
+    side: THREE.DoubleSide
+  });
+}
+
+// ============================================
+// 🎸 GUITAR CHORD AUDIO
+// ============================================
+
+function playGuitarChord() {
+  if (guitarChordPlaying) return; // Don't overlap chords
+  
+  // Initialize audio context on first interaction (browser requirement)
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  
+  // Resume context if suspended (browser autoplay policy)
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+  
+  guitarChordPlaying = true;
+  console.log('🎸 Playing Bdim chord with strum effect');
+  
+  // Bdim chord frequencies: B, D, F (B diminished)
+  const notes = [
+    246.94,  // B3
+    293.66,  // D4
+    349.23   // F4
+  ];
+  
+  const now = audioContext.currentTime;
+  const duration = 1.5; // Note duration
+  const strumDelay = 0.1; // 50ms delay between each string (strum effect!)
+  
+  notes.forEach((freq, index) => {
+    // Create oscillator for each note
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    osc.type = 'triangle'; // Warmer tone than sine
+    osc.frequency.value = freq;
+    
+    // Connect: oscillator → gain → speakers
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // 🎸 STRUM EFFECT: Start each string slightly delayed
+    const startTime = now + (index * strumDelay);
+    const endTime = startTime + duration;
+    
+    osc.start(startTime);
+    osc.stop(endTime);
+    
+    // Fade out volume for natural decay
+    gainNode.gain.setValueAtTime(0.3, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, endTime);
+  });
+  
+  // Reset playing flag after chord finishes
+  setTimeout(() => {
+    guitarChordPlaying = false;
+  }, (duration + (notes.length * strumDelay)) * 1000);
 }
 
 // ============================================
@@ -763,6 +1129,161 @@ function onMouseMove(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
+  // 🎯 HOVER DETECTION (only when not dragging)
+  // ⚡ OPTIMIZED: Only check every N frames and only raycast target object
+  if (!isDragging && hoverTargetObject) {
+    hoverCheckCounter++;
+    
+    if (hoverCheckCounter >= hoverCheckInterval) {
+      hoverCheckCounter = 0;
+      
+      raycaster.setFromCamera(mouse, camera);
+      // Only raycast the single target object instead of all 20 meshes!
+      const intersects = raycaster.intersectObject(hoverTargetObject, true);
+      
+      if (intersects.length > 0) {
+        // Hovering over stuff_Baked001
+        if (!hoverAnimationState.isHovering) {
+          hoverAnimationState.isHovering = true;
+          hoverAnimationState.object = hoverTargetObject;
+          hoverAnimationState.originalPosition = hoverTargetObject.position.clone();
+          console.log('✨ Started hovering over:', hoverTargetObject.name);
+        }
+        
+        // Apply glow effect
+        if (hoveredObject !== hoverTargetObject) {
+          // Remove glow from previous object
+          if (hoveredObject && originalMaterials.has(hoveredObject)) {
+            hoveredObject.material = originalMaterials.get(hoveredObject);
+          }
+          
+          // Store original material and apply glow
+          if (!originalMaterials.has(hoverTargetObject)) {
+            originalMaterials.set(hoverTargetObject, hoverTargetObject.material);
+          }
+          hoverTargetObject.material = createRimGlowMaterial(originalMaterials.get(hoverTargetObject));
+          hoveredObject = hoverTargetObject;
+        }
+      } else {
+        // Not hovering anymore
+        if (hoverAnimationState.isHovering) {
+          hoverAnimationState.isHovering = false;
+          console.log('👋 Stopped hovering');
+          
+          // Remove glow
+          if (hoveredObject && originalMaterials.has(hoveredObject)) {
+            hoveredObject.material = originalMaterials.get(hoveredObject);
+          }
+          hoveredObject = null;
+        }
+      }
+    }
+    
+    // 🌍 GLOBE HOVER DETECTION (check globe too)
+    if (globeTargetObject) {
+      raycaster.setFromCamera(mouse, camera);
+      const globeIntersects = raycaster.intersectObject(globeTargetObject, true);
+      
+      if (globeIntersects.length > 0) {
+        // Hovering over globe
+        if (!globeHoverState.isHovering) {
+          globeHoverState.isHovering = true;
+          console.log('🌍 Started hovering over globe:', globeTargetObject.name);
+        }
+        
+        // Apply glow effect to globe
+        if (hoveredObject !== globeTargetObject) {
+          // Store original material and apply glow
+          if (!originalMaterials.has(globeTargetObject)) {
+            originalMaterials.set(globeTargetObject, globeTargetObject.material);
+          }
+          globeTargetObject.material = createRimGlowMaterial(originalMaterials.get(globeTargetObject));
+          hoveredObject = globeTargetObject;
+        }
+      } else {
+        // Not hovering globe anymore
+        if (globeHoverState.isHovering) {
+          globeHoverState.isHovering = false;
+          console.log('🌍 Stopped hovering globe');
+          
+          // Remove glow from globe
+          if (hoveredObject === globeTargetObject && originalMaterials.has(globeTargetObject)) {
+            globeTargetObject.material = originalMaterials.get(globeTargetObject);
+            hoveredObject = null;
+          }
+        }
+      }
+    }
+    
+    // 🪑 FURNITURE 1 HOVER DETECTION (spinning)
+    if (furniture1Object) {
+      raycaster.setFromCamera(mouse, camera);
+      const furn1Intersects = raycaster.intersectObject(furniture1Object, true);
+      
+      if (furn1Intersects.length > 0) {
+        if (!furniture1State.isHovering) {
+          furniture1State.isHovering = true;
+          console.log('🪑 Started hovering furniture 1:', furniture1Object.name);
+        }
+        
+        // Apply glow
+        if (hoveredObject !== furniture1Object) {
+          if (!originalMaterials.has(furniture1Object)) {
+            originalMaterials.set(furniture1Object, furniture1Object.material);
+          }
+          furniture1Object.material = createRimGlowMaterial(originalMaterials.get(furniture1Object));
+          hoveredObject = furniture1Object;
+        }
+      } else {
+        if (furniture1State.isHovering) {
+          furniture1State.isHovering = false;
+          console.log('🪑 Stopped hovering furniture 1');
+          
+          if (hoveredObject === furniture1Object && originalMaterials.has(furniture1Object)) {
+            furniture1Object.material = originalMaterials.get(furniture1Object);
+            hoveredObject = null;
+          }
+        }
+      }
+    }
+    
+    // 🪑 FURNITURE 2 HOVER DETECTION (tilting)
+    if (furniture2Object) {
+      raycaster.setFromCamera(mouse, camera);
+      const furn2Intersects = raycaster.intersectObject(furniture2Object, true);
+      
+      if (furn2Intersects.length > 0) {
+        if (!furniture2State.isHovering) {
+          furniture2State.isHovering = true;
+          console.log('🎸 Started hovering guitar:', furniture2Object.name);
+          
+          // Play Bdim chord!
+          playGuitarChord();
+        }
+        
+        // Apply glow
+        if (hoveredObject !== furniture2Object) {
+          if (!originalMaterials.has(furniture2Object)) {
+            originalMaterials.set(furniture2Object, furniture2Object.material);
+          }
+          furniture2Object.material = createRimGlowMaterial(originalMaterials.get(furniture2Object));
+          hoveredObject = furniture2Object;
+        }
+      } else {
+        if (furniture2State.isHovering) {
+          furniture2State.isHovering = false;
+          console.log('🪑 Stopped hovering furniture 2');
+          
+          if (hoveredObject === furniture2Object && originalMaterials.has(furniture2Object)) {
+            furniture2Object.material = originalMaterials.get(furniture2Object);
+            hoveredObject = null;
+          }
+        }
+      }
+    }
+  }
+
+  // Handle dragging
   if (!isDragging || !dragBody) return;
 
   raycaster.setFromCamera(mouse, camera);
@@ -786,6 +1307,136 @@ function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  
+  if (composer) {
+    composer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+
+// ============================================
+// 🎯 HOVER ANIMATION
+// ============================================
+
+function updateHoverAnimation() {
+  const state = hoverAnimationState;
+  
+  if (state.isHovering && state.object && state.originalPosition) {
+    // Increment sway time for smooth oscillation
+    state.swayTime += 0.03;
+    
+    // Calculate floating motion with sway
+    const floatY = state.targetOffset.y;
+    const swayX = Math.sin(state.swayTime * 1.2) * 0.15; // Gentle left-right sway
+    const swayZ = Math.cos(state.swayTime * 0.8) * 0.1;  // Gentle forward-back sway
+    
+    // Smoothly lerp to target position
+    state.currentOffset.x += (swayX - state.currentOffset.x) * state.lerpSpeed;
+    state.currentOffset.y += (floatY - state.currentOffset.y) * state.lerpSpeed;
+    state.currentOffset.z += (swayZ - state.currentOffset.z) * state.lerpSpeed;
+    
+    // Apply offset to object position
+    state.object.position.x = state.originalPosition.x + state.currentOffset.x;
+    state.object.position.y = state.originalPosition.y + state.currentOffset.y;
+    state.object.position.z = state.originalPosition.z + state.currentOffset.z;
+    
+  } else if (state.object && state.originalPosition) {
+    // Smoothly return to original position when not hovering
+    state.currentOffset.x += (0 - state.currentOffset.x) * state.lerpSpeed;
+    state.currentOffset.y += (0 - state.currentOffset.y) * state.lerpSpeed;
+    state.currentOffset.z += (0 - state.currentOffset.z) * state.lerpSpeed;
+    
+    // Apply offset
+    state.object.position.x = state.originalPosition.x + state.currentOffset.x;
+    state.object.position.y = state.originalPosition.y + state.currentOffset.y;
+    state.object.position.z = state.originalPosition.z + state.currentOffset.z;
+    
+    // Reset state when fully settled
+    if (Math.abs(state.currentOffset.y) < 0.001) {
+      state.object = null;
+      state.originalPosition = null;
+      state.swayTime = 0;
+    }
+  }
+  
+  // 🌍 GLOBE SPINNING ANIMATION
+  const globeState = globeHoverState;
+  if (globeState.object) {
+    // Smoothly transition rotation speed
+    if (globeState.isHovering) {
+      globeState.rotationSpeed += (globeState.targetRotationSpeed - globeState.rotationSpeed) * 0.05;
+    } else {
+      globeState.rotationSpeed += (0 - globeState.rotationSpeed) * 0.05;
+    }
+    
+    // Apply the initial tilt (only once)
+    if (!globeState.tiltApplied) {
+      globeState.object.rotation.x = globeState.tiltX * Math.PI / 180;
+      globeState.object.rotation.y = globeState.tiltY * Math.PI / 180;
+      globeState.object.rotation.z = globeState.tiltZ * Math.PI / 180;
+      globeState.tiltApplied = true;
+      console.log('🌍 Globe tilt applied:', {
+        x: globeState.tiltX + '°',
+        y: globeState.tiltY + '°', 
+        z: globeState.tiltZ + '°'
+      });
+    }
+    
+    // Spin around its own Y axis (after tilt is applied)
+    globeState.object.rotation.y += globeState.rotationSpeed * 0.016;
+  }
+  
+  // 🪑 FURNITURE 1 - SPINNING ANIMATION
+  const furn1State = furniture1State;
+  if (furn1State.object) {
+    // Smoothly transition rotation speed
+    if (furn1State.isHovering) {
+      furn1State.rotationSpeed += (furn1State.targetRotationSpeed - furn1State.rotationSpeed) * 0.05;
+    } else {
+      furn1State.rotationSpeed += (0 - furn1State.rotationSpeed) * 0.05;
+    }
+    
+    // Spin on vertical axis (Y)
+    furn1State.object.rotation.y += furn1State.rotationSpeed * 0.016;
+  }
+  
+  // 🪑 FURNITURE 2 - HOVER & TILT ANIMATION
+  const furn2State = furniture2State;
+  if (furn2State.object && furn2State.originalPosition) {
+    if (furn2State.isHovering) {
+      // Increment tilt time for oscillation
+      furn2State.tiltTime += 0.03;
+      
+      // Float up
+      const floatY = furn2State.targetOffset.y;
+      
+      // Tilt left and right (rotation on Z axis)
+      const tiltZ = Math.sin(furn2State.tiltTime * 1.5) * 0.15; // Tilt angle in radians
+      
+      // Smoothly lerp position
+      furn2State.currentOffset.y += (floatY - furn2State.currentOffset.y) * furn2State.lerpSpeed;
+      
+      // Apply position
+      furn2State.object.position.y = furn2State.originalPosition.y + furn2State.currentOffset.y;
+      
+      // Apply tilt rotation
+      furn2State.object.rotation.z = tiltZ;
+      
+    } else {
+      // Return to original position and rotation
+      furn2State.currentOffset.y += (0 - furn2State.currentOffset.y) * furn2State.lerpSpeed;
+      
+      // Apply position
+      furn2State.object.position.y = furn2State.originalPosition.y + furn2State.currentOffset.y;
+      
+      // Reset rotation smoothly
+      furn2State.object.rotation.z += (0 - furn2State.object.rotation.z) * furn2State.lerpSpeed;
+      
+      // Reset tilt time when fully settled
+      if (Math.abs(furn2State.currentOffset.y) < 0.001) {
+        furn2State.tiltTime = 0;
+      }
+    }
+  }
 }
 
 function animate() {
@@ -809,7 +1460,15 @@ function animate() {
     obj.mesh.quaternion.copy(obj.body.quaternion);
   }
 
-  renderer.render(scene, camera);
+  // 🎯 Update hover animation
+  updateHoverAnimation();
+
+  // Render via Composer if available, else fallback
+  if (composer) {
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 </script>
 
