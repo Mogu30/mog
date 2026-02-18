@@ -155,65 +155,6 @@ let godRaysLight;
 let volumetricLights = []; // Array of volumetric light beam meshes
 let blockerPlane = null; // Plane to block god rays
 
-// 🎯 HOVER EFFECT GLOBALS
-let hoveredObject = null;
-let originalMaterials = new Map(); // Store original materials
-let hoverAnimationState = {
-  isHovering: false,
-  object: null,
-  originalPosition: null,
-  targetOffset: { y: 0.5 }, // How high to float
-  currentOffset: { x: 0, y: 0, z: 0 },
-  swayTime: 0,
-  lerpSpeed: 0.05 // Smooth transition speed
-};
-
-// 🌍 GLOBE HOVER STATE
-let globeHoverState = {
-  isHovering: false,
-  object: null,
-  rotationSpeed: 0,
-  targetRotationSpeed: 2.0, // Speed when hovering
-  
-  // 🎨 ADJUST THESE TO FIX THE TILT ANGLE!
-  tiltX: -20,  // Tilt forward/backward (negative = forward, positive = backward)
-  tiltY: 0,    // Tilt left/right
-  tiltZ: 0,    // Roll/twist
-  
-  tiltApplied: false // Track if we've set the initial tilt
-};
-
-// 🪑 FURNITURE 1 - SPINNING (furniture_Baked001)
-let furniture1State = {
-  isHovering: false,
-  object: null,
-  rotationSpeed: 0,
-  targetRotationSpeed: 2.0 // Spin speed
-};
-
-// 🪑 FURNITURE 2 - HOVER & TILT (furniture_Baked002)
-let furniture2State = {
-  isHovering: false,
-  object: null,
-  originalPosition: null,
-  currentOffset: { x: 0, y: 0, z: 0 },
-  targetOffset: { y: 0.3 }, // Float height
-  tiltTime: 0,
-  lerpSpeed: 0.05
-};
-
-// 🎸 GUITAR AUDIO (Web Audio API)
-let audioContext = null;
-let guitarChordPlaying = false;
-
-// ⚡ PERFORMANCE OPTIMIZATION
-let hoverCheckCounter = 0;
-let hoverCheckInterval = 3; // Only check hover every N frames
-let hoverTargetObject = null; // Cache the specific object to raycast against
-let globeTargetObject = null; // Cache globe object
-let furniture1Object = null; // Cache furniture 1 (spinning)
-let furniture2Object = null; // Cache furniture 2 (tilting)
-
 init();
 
 async function init() {
@@ -475,6 +416,9 @@ async function resetWall() {
     obj.body.velocity.set(0, 0, 0);
     obj.body.angularVelocity.set(0, 0, 0);
   }
+
+  // Re-enable the back button for next time
+  document.getElementById('back-btn').style.pointerEvents = 'auto';
 }
 
 function createFloor(material) {
@@ -585,11 +529,10 @@ async function loadGLB() {
   console.log('🎨 Loading baked textures...');
   try {
     const texturePaths = {
-      'posters': 'assets/textures/Posters_Bake1_CyclesBake_COMBINED.exr',
-      'furniture': 'assets/textures/furnitrure_Bake2_CyclesBake_COMBINED.exr',
-      'stuff': 'assets/textures/STUFF_Bake2_CyclesBake_COMBINED.exr',
-      'decorations': 'assets/textures/decorations_Bake2_CyclesBake_COMBINED.exr',
-      'walls': 'assets/textures/wallz_Bake2_CyclesBake_COMBINED.exr'
+      'decorations': 'assets/textures/DECORATIONS_Bake1_CyclesBake_COMBINED.exr',
+      'furniture': 'assets/textures/FURNITURE_Bake1_CyclesBake_COMBINED.exr',
+      'stuff': 'assets/textures/STUFF_Bake1_CyclesBake_COMBINED.exr',
+      'walls': 'assets/textures/WALLS_Bake1_CyclesBake_COMBINED.exr'
     };
     
     for (const [key, path] of Object.entries(texturePaths)) {
@@ -648,21 +591,18 @@ async function loadGLB() {
         console.log(`🔍 Checking mesh: "${child.name}" (lowercase: "${meshName}")`);
         
         // Find matching baked texture (check specific keywords before generic ones)
-        if (meshName.includes('posters') && bakedTextures.posters) {
-          bakedTexture = bakedTextures.posters;
-          console.log(`  ✅ Matched to POSTERS texture`);
-        } else if (meshName.includes('furnitrure') && bakedTextures.furniture) {
+        if (meshName.includes('walls') && bakedTextures.walls) {
+          bakedTexture = bakedTextures.walls;
+          console.log(`  ✅ Matched to WALLS texture`);
+        } else if (meshName.includes('stuff') && bakedTextures.stuff) {
+          bakedTexture = bakedTextures.stuff;
+          console.log(`  ✅ Matched to STUFF texture`);
+        } else if ((meshName.includes('furniture') || meshName.includes('furnitrure')) && bakedTextures.furniture) {
           bakedTexture = bakedTextures.furniture;
           console.log(`  ✅ Matched to FURNITURE texture`);
         } else if (meshName.includes('decorations') && bakedTextures.decorations) {
           bakedTexture = bakedTextures.decorations;
-          console.log(`  ✅ Matched to decorations texture`);
-        } else if (meshName.includes('stuff') && bakedTextures.stuff) {
-          bakedTexture = bakedTextures.stuff;
-          console.log(`  ✅ Matched to STUFF texture`);
-        } else if (meshName.includes('wall') && bakedTextures.walls) {
-          bakedTexture = bakedTextures.walls;
-          console.log(`  ✅ Matched to WALLS texture`);
+          console.log(`  ✅ Matched to DECORATIONS texture`);
         } else {
           console.log(`  ⚠️ No texture match found`);
         }
@@ -754,38 +694,6 @@ async function loadGLB() {
     console.log('═══════════════════════════════════════════');
     console.log('');
     
-    // ⚡ OPTIMIZATION: Cache the hover target objects
-    hoverTargetObject = sceneMeshes.find(m => m.name === "stuff_Baked001");
-    if (hoverTargetObject) {
-      console.log('✅ Hover target cached:', hoverTargetObject.name);
-    } else {
-      console.warn('⚠️ Hover target "stuff_Baked001" not found');
-    }
-    
-    globeTargetObject = sceneMeshes.find(m => m.name === "decorations_Baked002");
-    if (globeTargetObject) {
-      console.log('✅ Globe target cached:', globeTargetObject.name);
-      globeHoverState.object = globeTargetObject;
-    } else {
-      console.warn('⚠️ Globe target "decorations_Baked002" not found');
-    }
-    
-    furniture1Object = sceneMeshes.find(m => m.name === "furnitrure_Baked001");
-    if (furniture1Object) {
-      console.log('✅ Furniture 1 (spinning) cached:', furniture1Object.name);
-      furniture1State.object = furniture1Object;
-    } else {
-      console.warn('⚠️ Furniture 1 "furnitrure_Baked001" not found');
-    }
-    
-    furniture2Object = sceneMeshes.find(m => m.name === "furnitrure_Baked002");
-    if (furniture2Object) {
-      console.log('✅ Furniture 2 (tilting) cached:', furniture2Object.name);
-      furniture2State.object = furniture2Object;
-      furniture2State.originalPosition = furniture2Object.position.clone();
-    } else {
-      console.warn('⚠️ Furniture 2 "furnitrure_Baked002" not found');
-    }
   } catch (e) {
     console.error("GLB Load Error:", e);
     console.warn('⚠️ Could not load GLB. Using default setup.');
@@ -967,124 +875,6 @@ function createBlockerPlane(config) {
 }
 
 // ============================================
-// 🎨 HOVER EFFECT WITH RIM GLOW
-// ============================================
-
-function createRimGlowMaterial(originalMaterial) {
-  // Create a shader material with rim lighting effect
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      baseTexture: { value: originalMaterial.map },
-      glowColor: { value: new THREE.Color(0x00ffff) }, // Cyan glow - change this!
-      rimPower: { value: 2.5 },
-      glowIntensity: { value: 1.5 }
-    },
-    vertexShader: `
-      varying vec3 vNormal;
-      varying vec3 vViewPosition;
-      varying vec2 vUv;
-      
-      void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        vViewPosition = -mvPosition.xyz;
-        gl_Position = projectionMatrix * mvPosition;
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D baseTexture;
-      uniform vec3 glowColor;
-      uniform float rimPower;
-      uniform float glowIntensity;
-      
-      varying vec3 vNormal;
-      varying vec3 vViewPosition;
-      varying vec2 vUv;
-      
-      void main() {
-        // Sample the original texture
-        vec4 texColor = texture2D(baseTexture, vUv);
-        
-        // Calculate rim lighting
-        vec3 normal = normalize(vNormal);
-        vec3 viewDir = normalize(vViewPosition);
-        float rimFactor = 1.0 - max(0.0, dot(normal, viewDir));
-        rimFactor = pow(rimFactor, rimPower);
-        
-        // Combine texture with rim glow
-        vec3 glow = glowColor * rimFactor * glowIntensity;
-        vec3 finalColor = texColor.rgb + glow;
-        
-        gl_FragColor = vec4(finalColor, texColor.a);
-      }
-    `,
-    side: THREE.DoubleSide
-  });
-}
-
-// ============================================
-// 🎸 GUITAR CHORD AUDIO
-// ============================================
-
-function playGuitarChord() {
-  if (guitarChordPlaying) return; // Don't overlap chords
-  
-  // Initialize audio context on first interaction (browser requirement)
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  
-  // Resume context if suspended (browser autoplay policy)
-  if (audioContext.state === 'suspended') {
-    audioContext.resume();
-  }
-  
-  guitarChordPlaying = true;
-  console.log('🎸 Playing Bdim chord with strum effect');
-  
-  // Bdim chord frequencies: B, D, F (B diminished)
-  const notes = [
-    246.94,  // B3
-    293.66,  // D4
-    349.23   // F4
-  ];
-  
-  const now = audioContext.currentTime;
-  const duration = 1.5; // Note duration
-  const strumDelay = 0.1; // 50ms delay between each string (strum effect!)
-  
-  notes.forEach((freq, index) => {
-    // Create oscillator for each note
-    const osc = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    osc.type = 'triangle'; // Warmer tone than sine
-    osc.frequency.value = freq;
-    
-    // Connect: oscillator → gain → speakers
-    osc.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // 🎸 STRUM EFFECT: Start each string slightly delayed
-    const startTime = now + (index * strumDelay);
-    const endTime = startTime + duration;
-    
-    osc.start(startTime);
-    osc.stop(endTime);
-    
-    // Fade out volume for natural decay
-    gainNode.gain.setValueAtTime(0.3, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, endTime);
-  });
-  
-  // Reset playing flag after chord finishes
-  setTimeout(() => {
-    guitarChordPlaying = false;
-  }, (duration + (notes.length * strumDelay)) * 1000);
-}
-
-// ============================================
 // INTERACTION
 // ============================================
 
@@ -1129,160 +919,6 @@ function onMouseMove(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-  // 🎯 HOVER DETECTION (only when not dragging)
-  // ⚡ OPTIMIZED: Only check every N frames and only raycast target object
-  if (!isDragging && hoverTargetObject) {
-    hoverCheckCounter++;
-    
-    if (hoverCheckCounter >= hoverCheckInterval) {
-      hoverCheckCounter = 0;
-      
-      raycaster.setFromCamera(mouse, camera);
-      // Only raycast the single target object instead of all 20 meshes!
-      const intersects = raycaster.intersectObject(hoverTargetObject, true);
-      
-      if (intersects.length > 0) {
-        // Hovering over stuff_Baked001
-        if (!hoverAnimationState.isHovering) {
-          hoverAnimationState.isHovering = true;
-          hoverAnimationState.object = hoverTargetObject;
-          hoverAnimationState.originalPosition = hoverTargetObject.position.clone();
-          console.log('✨ Started hovering over:', hoverTargetObject.name);
-        }
-        
-        // Apply glow effect
-        if (hoveredObject !== hoverTargetObject) {
-          // Remove glow from previous object
-          if (hoveredObject && originalMaterials.has(hoveredObject)) {
-            hoveredObject.material = originalMaterials.get(hoveredObject);
-          }
-          
-          // Store original material and apply glow
-          if (!originalMaterials.has(hoverTargetObject)) {
-            originalMaterials.set(hoverTargetObject, hoverTargetObject.material);
-          }
-          hoverTargetObject.material = createRimGlowMaterial(originalMaterials.get(hoverTargetObject));
-          hoveredObject = hoverTargetObject;
-        }
-      } else {
-        // Not hovering anymore
-        if (hoverAnimationState.isHovering) {
-          hoverAnimationState.isHovering = false;
-          console.log('👋 Stopped hovering');
-          
-          // Remove glow
-          if (hoveredObject && originalMaterials.has(hoveredObject)) {
-            hoveredObject.material = originalMaterials.get(hoveredObject);
-          }
-          hoveredObject = null;
-        }
-      }
-    }
-    
-    // 🌍 GLOBE HOVER DETECTION (check globe too)
-    if (globeTargetObject) {
-      raycaster.setFromCamera(mouse, camera);
-      const globeIntersects = raycaster.intersectObject(globeTargetObject, true);
-      
-      if (globeIntersects.length > 0) {
-        // Hovering over globe
-        if (!globeHoverState.isHovering) {
-          globeHoverState.isHovering = true;
-          console.log('🌍 Started hovering over globe:', globeTargetObject.name);
-        }
-        
-        // Apply glow effect to globe
-        if (hoveredObject !== globeTargetObject) {
-          // Store original material and apply glow
-          if (!originalMaterials.has(globeTargetObject)) {
-            originalMaterials.set(globeTargetObject, globeTargetObject.material);
-          }
-          globeTargetObject.material = createRimGlowMaterial(originalMaterials.get(globeTargetObject));
-          hoveredObject = globeTargetObject;
-        }
-      } else {
-        // Not hovering globe anymore
-        if (globeHoverState.isHovering) {
-          globeHoverState.isHovering = false;
-          console.log('🌍 Stopped hovering globe');
-          
-          // Remove glow from globe
-          if (hoveredObject === globeTargetObject && originalMaterials.has(globeTargetObject)) {
-            globeTargetObject.material = originalMaterials.get(globeTargetObject);
-            hoveredObject = null;
-          }
-        }
-      }
-    }
-    
-    // 🪑 FURNITURE 1 HOVER DETECTION (spinning)
-    if (furniture1Object) {
-      raycaster.setFromCamera(mouse, camera);
-      const furn1Intersects = raycaster.intersectObject(furniture1Object, true);
-      
-      if (furn1Intersects.length > 0) {
-        if (!furniture1State.isHovering) {
-          furniture1State.isHovering = true;
-          console.log('🪑 Started hovering furniture 1:', furniture1Object.name);
-        }
-        
-        // Apply glow
-        if (hoveredObject !== furniture1Object) {
-          if (!originalMaterials.has(furniture1Object)) {
-            originalMaterials.set(furniture1Object, furniture1Object.material);
-          }
-          furniture1Object.material = createRimGlowMaterial(originalMaterials.get(furniture1Object));
-          hoveredObject = furniture1Object;
-        }
-      } else {
-        if (furniture1State.isHovering) {
-          furniture1State.isHovering = false;
-          console.log('🪑 Stopped hovering furniture 1');
-          
-          if (hoveredObject === furniture1Object && originalMaterials.has(furniture1Object)) {
-            furniture1Object.material = originalMaterials.get(furniture1Object);
-            hoveredObject = null;
-          }
-        }
-      }
-    }
-    
-    // 🪑 FURNITURE 2 HOVER DETECTION (tilting)
-    if (furniture2Object) {
-      raycaster.setFromCamera(mouse, camera);
-      const furn2Intersects = raycaster.intersectObject(furniture2Object, true);
-      
-      if (furn2Intersects.length > 0) {
-        if (!furniture2State.isHovering) {
-          furniture2State.isHovering = true;
-          console.log('🎸 Started hovering guitar:', furniture2Object.name);
-          
-          // Play Bdim chord!
-          playGuitarChord();
-        }
-        
-        // Apply glow
-        if (hoveredObject !== furniture2Object) {
-          if (!originalMaterials.has(furniture2Object)) {
-            originalMaterials.set(furniture2Object, furniture2Object.material);
-          }
-          furniture2Object.material = createRimGlowMaterial(originalMaterials.get(furniture2Object));
-          hoveredObject = furniture2Object;
-        }
-      } else {
-        if (furniture2State.isHovering) {
-          furniture2State.isHovering = false;
-          console.log('🪑 Stopped hovering furniture 2');
-          
-          if (hoveredObject === furniture2Object && originalMaterials.has(furniture2Object)) {
-            furniture2Object.material = originalMaterials.get(furniture2Object);
-            hoveredObject = null;
-          }
-        }
-      }
-    }
-  }
-
   // Handle dragging
   if (!isDragging || !dragBody) return;
 
@@ -1313,132 +949,6 @@ function onWindowResize() {
   }
 }
 
-// ============================================
-// 🎯 HOVER ANIMATION
-// ============================================
-
-function updateHoverAnimation() {
-  const state = hoverAnimationState;
-  
-  if (state.isHovering && state.object && state.originalPosition) {
-    // Increment sway time for smooth oscillation
-    state.swayTime += 0.03;
-    
-    // Calculate floating motion with sway
-    const floatY = state.targetOffset.y;
-    const swayX = Math.sin(state.swayTime * 1.2) * 0.15; // Gentle left-right sway
-    const swayZ = Math.cos(state.swayTime * 0.8) * 0.1;  // Gentle forward-back sway
-    
-    // Smoothly lerp to target position
-    state.currentOffset.x += (swayX - state.currentOffset.x) * state.lerpSpeed;
-    state.currentOffset.y += (floatY - state.currentOffset.y) * state.lerpSpeed;
-    state.currentOffset.z += (swayZ - state.currentOffset.z) * state.lerpSpeed;
-    
-    // Apply offset to object position
-    state.object.position.x = state.originalPosition.x + state.currentOffset.x;
-    state.object.position.y = state.originalPosition.y + state.currentOffset.y;
-    state.object.position.z = state.originalPosition.z + state.currentOffset.z;
-    
-  } else if (state.object && state.originalPosition) {
-    // Smoothly return to original position when not hovering
-    state.currentOffset.x += (0 - state.currentOffset.x) * state.lerpSpeed;
-    state.currentOffset.y += (0 - state.currentOffset.y) * state.lerpSpeed;
-    state.currentOffset.z += (0 - state.currentOffset.z) * state.lerpSpeed;
-    
-    // Apply offset
-    state.object.position.x = state.originalPosition.x + state.currentOffset.x;
-    state.object.position.y = state.originalPosition.y + state.currentOffset.y;
-    state.object.position.z = state.originalPosition.z + state.currentOffset.z;
-    
-    // Reset state when fully settled
-    if (Math.abs(state.currentOffset.y) < 0.001) {
-      state.object = null;
-      state.originalPosition = null;
-      state.swayTime = 0;
-    }
-  }
-  
-  // 🌍 GLOBE SPINNING ANIMATION
-  const globeState = globeHoverState;
-  if (globeState.object) {
-    // Smoothly transition rotation speed
-    if (globeState.isHovering) {
-      globeState.rotationSpeed += (globeState.targetRotationSpeed - globeState.rotationSpeed) * 0.05;
-    } else {
-      globeState.rotationSpeed += (0 - globeState.rotationSpeed) * 0.05;
-    }
-    
-    // Apply the initial tilt (only once)
-    if (!globeState.tiltApplied) {
-      globeState.object.rotation.x = globeState.tiltX * Math.PI / 180;
-      globeState.object.rotation.y = globeState.tiltY * Math.PI / 180;
-      globeState.object.rotation.z = globeState.tiltZ * Math.PI / 180;
-      globeState.tiltApplied = true;
-      console.log('🌍 Globe tilt applied:', {
-        x: globeState.tiltX + '°',
-        y: globeState.tiltY + '°', 
-        z: globeState.tiltZ + '°'
-      });
-    }
-    
-    // Spin around its own Y axis (after tilt is applied)
-    globeState.object.rotation.y += globeState.rotationSpeed * 0.016;
-  }
-  
-  // 🪑 FURNITURE 1 - SPINNING ANIMATION
-  const furn1State = furniture1State;
-  if (furn1State.object) {
-    // Smoothly transition rotation speed
-    if (furn1State.isHovering) {
-      furn1State.rotationSpeed += (furn1State.targetRotationSpeed - furn1State.rotationSpeed) * 0.05;
-    } else {
-      furn1State.rotationSpeed += (0 - furn1State.rotationSpeed) * 0.05;
-    }
-    
-    // Spin on vertical axis (Y)
-    furn1State.object.rotation.y += furn1State.rotationSpeed * 0.016;
-  }
-  
-  // 🪑 FURNITURE 2 - HOVER & TILT ANIMATION
-  const furn2State = furniture2State;
-  if (furn2State.object && furn2State.originalPosition) {
-    if (furn2State.isHovering) {
-      // Increment tilt time for oscillation
-      furn2State.tiltTime += 0.03;
-      
-      // Float up
-      const floatY = furn2State.targetOffset.y;
-      
-      // Tilt left and right (rotation on Z axis)
-      const tiltZ = Math.sin(furn2State.tiltTime * 1.5) * 0.15; // Tilt angle in radians
-      
-      // Smoothly lerp position
-      furn2State.currentOffset.y += (floatY - furn2State.currentOffset.y) * furn2State.lerpSpeed;
-      
-      // Apply position
-      furn2State.object.position.y = furn2State.originalPosition.y + furn2State.currentOffset.y;
-      
-      // Apply tilt rotation
-      furn2State.object.rotation.z = tiltZ;
-      
-    } else {
-      // Return to original position and rotation
-      furn2State.currentOffset.y += (0 - furn2State.currentOffset.y) * furn2State.lerpSpeed;
-      
-      // Apply position
-      furn2State.object.position.y = furn2State.originalPosition.y + furn2State.currentOffset.y;
-      
-      // Reset rotation smoothly
-      furn2State.object.rotation.z += (0 - furn2State.object.rotation.z) * furn2State.lerpSpeed;
-      
-      // Reset tilt time when fully settled
-      if (Math.abs(furn2State.currentOffset.y) < 0.001) {
-        furn2State.tiltTime = 0;
-      }
-    }
-  }
-}
-
 function animate() {
   requestAnimationFrame(animate);
   
@@ -1459,9 +969,6 @@ function animate() {
     obj.mesh.position.copy(obj.body.position);
     obj.mesh.quaternion.copy(obj.body.quaternion);
   }
-
-  // 🎯 Update hover animation
-  updateHoverAnimation();
 
   // Render via Composer if available, else fallback
   if (composer) {
