@@ -72,7 +72,6 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { RectAreaLightHelper } from 'three/addons/helpers/RectAreaLightHelper.js';
 
@@ -84,7 +83,7 @@ const WALL_CONFIG = {
   cols: 16,
   rows: 9,
   cubeSize: 3,
-  gap: 0.05,
+  gap: 0.001,
   centerY: 13.5
 };
 const GLB_PATH = 'assets/scene.glb';
@@ -212,11 +211,6 @@ async function init() {
   scene.add(ambientLight);
   console.log('✅ Ambient light added (intensity: 5.0)');
 
-  // 3. Load Lightmaps FIRST (if enabled)
-  if (LIGHTMAP_CONFIG.enabled) {
-    await loadLightmaps();
-  }
-
   // 4. Environment (HDRI) - ENABLED
   await loadHDRI();
 
@@ -252,63 +246,6 @@ async function init() {
 
   // 8. Start Loop
   animate();
-}
-
-// ============================================
-// LIGHTMAP LOADING FUNCTIONS
-// ============================================
-
-async function loadLightmaps() {
-  const exrLoader = new EXRLoader();
-  const promises = [];
-  
-  console.log('🔆 Loading lightmaps...');
-  
-  for (const [key, path] of Object.entries(LIGHTMAP_CONFIG.lightmaps)) {
-    const promise = new Promise((resolve) => {
-      exrLoader.load(
-        path,
-        (texture) => {
-          // Configure lightmap texture
-          texture.mapping = THREE.UVMapping;
-          texture.colorSpace = THREE.LinearSRGBColorSpace; // IMPORTANT for lightmaps!
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.generateMipmaps = false;
-          
-          loadedLightmaps[key] = texture;
-          console.log(`✅ Loaded lightmap: ${key} from ${path}`);
-          resolve();
-        },
-        undefined,
-        (error) => {
-          console.warn(`⚠️ Could not load lightmap ${key}: ${error.message}`);
-          console.warn(`   Path: ${path}`);
-          resolve(); // Don't block on failed lightmaps
-        }
-      );
-    });
-    promises.push(promise);
-  }
-  
-  await Promise.all(promises);
-  console.log(`🔆 Lightmap loading complete. Loaded ${Object.keys(loadedLightmaps).length} lightmaps.`);
-}
-
-function findBestLightmapMatch(meshName) {
-  if (!LIGHTMAP_CONFIG.autoMatch) return null;
-  
-  meshName = meshName.toLowerCase();
-  
-  // Try to find the best match by checking if mesh name contains lightmap key
-  for (const key of Object.keys(loadedLightmaps)) {
-    if (meshName.includes(key.toLowerCase())) {
-      return key;
-    }
-  }
-  
-  // If no match found, use default
-  return LIGHTMAP_CONFIG.defaultLightmap;
 }
 
 function applyLightmapToMesh(mesh, lightmapKey) {
@@ -480,11 +417,11 @@ async function createWall(material) {
       const y = startY + r * (cubeSize + gap);
       
       // Physics - BRICK-LIKE: Heavy mass, less bouncy
-      const body = new CANNON.Body({ mass: 25, material: material }); // Was 5, now 25 (5x heavier!)
+      const body = new CANNON.Body({ mass: 500, material: material }); // Was 5, now 25 (5x heavier!)
       body.addShape(shape);
       body.position.set(x, y, 0);
-      body.linearDamping = 0.4;  // Was 0.1, now 0.4 (slows down faster)
-      body.angularDamping = 0.3; // Was 0.1, now 0.3 (less spinning)
+      body.linearDamping = 0;  // Was 0.1, now 0.4 (slows down faster)
+      body.angularDamping = 0; // Was 0.1, now 0.3 (less spinning)
       world.addBody(body);
 
       // Visual
@@ -521,7 +458,7 @@ async function createWall(material) {
 
 async function loadGLB() {
   const loader = new GLTFLoader();
-  const exrLoader = new EXRLoader();
+  const textureLoader = new THREE.TextureLoader();
 
   // Load the baked textures as base textures for MeshBasicMaterial
   const bakedTextures = {};
@@ -529,23 +466,22 @@ async function loadGLB() {
   console.log('🎨 Loading baked textures...');
   try {
     const texturePaths = {
-      'decorations': 'assets/textures/DECORATIONS_Bake1_CyclesBake_COMBINED.exr',
-      'furniture': 'assets/textures/FURNITURE_Bake1_CyclesBake_COMBINED.exr',
-      'stuff': 'assets/textures/STUFF_Bake1_CyclesBake_COMBINED.exr',
-      'walls': 'assets/textures/WALLS_Bake1_CyclesBake_COMBINED.exr'
+      'animated': 'assets/textures/animated_Bake1_CyclesBake_COMBINED.png',
+      'bg': 'assets/textures/BG_Bake1_CyclesBake_COMBINED.png',
+      'decorations': 'assets/textures/DECORATIONS_Bake1_CyclesBake_COMBINED.png',
+      'furniture': 'assets/textures/furnitrure_Bake1_CyclesBake_COMBINED.png', // fixed key spelling
+      'walls': 'assets/textures/WALLS_Bake1_CyclesBake_COMBINED.png'
     };
     
     for (const [key, path] of Object.entries(texturePaths)) {
       try {
         const texture = await new Promise((resolve, reject) => {
-          exrLoader.load(path, resolve, undefined, reject);
+          textureLoader.load(path, resolve, undefined, reject);
         });
-        // EXR files should be Linear, not sRGB!
-        texture.colorSpace = THREE.LinearSRGBColorSpace;
-        texture.flipY = true; // ⚠️ Try toggling this if texture is upside down!
+        // PNG textures are usually sRGB
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.flipY = false; // Standard for GLTF models
         texture.channel = 0;
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
         texture.needsUpdate = true;
         bakedTextures[key] = texture;
         console.log(`  ✅ Loaded ${key} texture`);
@@ -590,43 +526,41 @@ async function loadGLB() {
         
         console.log(`🔍 Checking mesh: "${child.name}" (lowercase: "${meshName}")`);
         
+        // Define meshes that use the 'things' texture
+        const thingsMeshes = [
+          'arch', 'chair', 'globe', 'guitar', 'monitor', 'things'
+        ];
+
         // Find matching baked texture (check specific keywords before generic ones)
+        // We use a unified logic for all meshes to ensure consistent mapping
         if (meshName.includes('walls') && bakedTextures.walls) {
           bakedTexture = bakedTextures.walls;
           console.log(`  ✅ Matched to WALLS texture`);
-        } else if (meshName.includes('stuff') && bakedTextures.stuff) {
-          bakedTexture = bakedTextures.stuff;
-          console.log(`  ✅ Matched to STUFF texture`);
         } else if ((meshName.includes('furniture') || meshName.includes('furnitrure')) && bakedTextures.furniture) {
           bakedTexture = bakedTextures.furniture;
           console.log(`  ✅ Matched to FURNITURE texture`);
-        } else if (meshName.includes('decorations') && bakedTextures.decorations) {
+        } else if ((meshName.includes('decoration') || meshName.includes('decorations')) && bakedTextures.decorations) {
           bakedTexture = bakedTextures.decorations;
           console.log(`  ✅ Matched to DECORATIONS texture`);
+        } else if (meshName.includes('animated') && bakedTextures.animated) {
+          bakedTexture = bakedTextures.animated;
+          console.log(`  ✅ Matched to ANIMATED texture`);
+        } else if (meshName.includes('bg') && bakedTextures.bg) {
+          bakedTexture = bakedTextures.bg;
+          console.log(`  ✅ Matched to BG texture`);
+        } else if (["arch","chair","globe","guitar","monitor"].some(t => meshName === t || meshName.startsWith(t+"_")) && bakedTextures.animated) {
+          bakedTexture = bakedTextures.animated;
+          console.log(`  ✅ Matched to ANIMATED texture (fallback for arch/chair/globe/guitar/monitor)`);
+        } else if (thingsMeshes.some(t => meshName.includes(t)) && bakedTextures.things) {
+          bakedTexture = bakedTextures.things;
+          console.log(`  ✅ Matched to THINGS texture`);
         } else {
           console.log(`  ⚠️ No texture match found`);
         }
         
         if (bakedTexture) {
-          // Texture is already set to flipY = true from loading
-          
-          // Clone the texture for this mesh so we can adjust UVs independently
-          const texClone = bakedTexture.clone();
-          texClone.needsUpdate = true;
-          
-          // UV transform - adjust these if texture scale is wrong
-          // Default is 1,1 (no repeat). Increase to tile more, decrease to tile less
-          texClone.repeat.set(1, 1);
-          texClone.offset.set(0, 0);
-          
-          // FIX: Use UV2 (LightMapUV) for 'stuff' mesh if available
-          if (bakedTexture === bakedTextures.stuff && child.geometry.attributes.uv2) {
-            console.log(`  🔄 Swapping UVs for ${child.name} to use LightMapUV (uv2)`);
-            child.geometry.setAttribute('uv', child.geometry.attributes.uv2);
-          }
-          
           child.material = new THREE.MeshBasicMaterial({
-            map: texClone
+            map: bakedTexture
           });
           
           console.log(`🎨 Applied baked texture to ${child.name}`);
@@ -795,8 +729,8 @@ async function setupGodRaysSystem() {
     lightZ: -200,
     
     // Ray properties
-    density: 0.0125,
-    maxDensity: 0.7,
+    density: 0.01,
+    maxDensity: 0.05,
     edgeStrength: 3,
     
     // Blocker plane (to prevent ray leaking)
