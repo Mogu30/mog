@@ -189,7 +189,7 @@ async function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.8; // Reduced from 1.0 to prevent blown out look
+  renderer.toneMappingExposure = 1; // Reduced from 1.0 to prevent blown out look
   renderer.useLegacyLights = false;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
@@ -559,18 +559,21 @@ async function loadGLB() {
         }
         
         if (bakedTexture) {
-          child.material = new THREE.MeshBasicMaterial({
-            map: bakedTexture
+          child.material = new THREE.MeshStandardMaterial({
+            map: bakedTexture,
+            roughness: 0.7,
+            metalness: 0.1,
+            envMapIntensity: 0.5 // Increase for stronger HDRI effect
           });
-          
-          console.log(`🎨 Applied baked texture to ${child.name}`);
+          console.log(`🎨 Applied baked texture (with env lighting) to ${child.name}`);
         } else {
           // No baked texture - create default material
           if (!child.material) {
             child.material = new THREE.MeshStandardMaterial({
               color: 0xcccccc,
               roughness: 0.7,
-              metalness: 0.0
+              metalness: 0.0,
+              envMapIntensity: 1.0
             });
           }
         }
