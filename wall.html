@@ -528,7 +528,7 @@ async function loadGLB() {
         
         // Define meshes that use the 'things' texture
         const thingsMeshes = [
-          'arch', 'chair', 'globe', 'guitar', 'monitor', 'things'
+          'arch', 'chair', 'globe', 'guitar', 'monitro', 'things'
         ];
 
         // Find matching baked texture (check specific keywords before generic ones)
@@ -548,9 +548,9 @@ async function loadGLB() {
         } else if (meshName.includes('bg') && bakedTextures.bg) {
           bakedTexture = bakedTextures.bg;
           console.log(`  ✅ Matched to BG texture`);
-        } else if (["arch","chair","globe","guitar","monitor"].some(t => meshName === t || meshName.startsWith(t+"_")) && bakedTextures.animated) {
+        } else if (["arch","chair","globe","guitar","monitro"].some(t => meshName === t || meshName.startsWith(t+"_")) && bakedTextures.animated) {
           bakedTexture = bakedTextures.animated;
-          console.log(`  ✅ Matched to ANIMATED texture (fallback for arch/chair/globe/guitar/monitor)`);
+          console.log(`  ✅ Matched to ANIMATED texture (fallback for arch/chair/globe/guitar/monitro)`);
         } else if (thingsMeshes.some(t => meshName.includes(t)) && bakedTextures.things) {
           bakedTexture = bakedTextures.things;
           console.log(`  ✅ Matched to THINGS texture`);
