@@ -203,8 +203,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.152.2/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.152.2/examples/jsm/",
+    "three": "https://unpkg.com/three@0.167.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.167.0/examples/jsm/",
     "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
     "postprocessing": "https://unpkg.com/postprocessing@6.36.3/build/index.js"
   }
@@ -492,8 +492,8 @@ async function init() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1; // Reduced from 1.0 to prevent blown out look
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1;
   renderer.useLegacyLights = false;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
@@ -511,11 +511,11 @@ async function init() {
   RectAreaLightUniformsLib.init();
 
   // Add Ambient Light for general scene illumination
-  const ambientLight = new THREE.AmbientLight(0xffffff, 5.0); // Set to 2.0 (your preferred value)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Low — shadows already baked into textures
   scene.add(ambientLight);
 
   // 💙 Blue directional light
-  const blueLight = new THREE.DirectionalLight(0x191970, 20);
+  const blueLight = new THREE.DirectionalLight(0x191970, 0.5);
   blueLight.position.set(70, 30, -100);
   blueLight.target.position.set(0, WALL_CONFIG.centerY, 0);
   blueLight.castShadow = true;
@@ -725,7 +725,7 @@ async function createWall(material) {
     bumpScale: 0.2,
     roughness: 0.7, 
     metalness: 0.1,
-    envMapIntensity: 0.5
+    envMapIntensity: 0.1
   });
 
   // Back Barrier
@@ -887,21 +887,15 @@ async function loadGLB() {
         }
         
         if (bakedTexture) {
-          child.material = new THREE.MeshStandardMaterial({
+          child.material = new THREE.MeshBasicMaterial({
             map: bakedTexture,
-            roughness: 0.7,
-            metalness: 0.1,
-            envMapIntensity: 1
           });
           console.log(`🎨 Applied baked texture to ${child.name}`);
         } else {
           // No baked texture - create default material
           if (!child.material) {
-            child.material = new THREE.MeshStandardMaterial({
+            child.material = new THREE.MeshBasicMaterial({
               color: 0xcccccc,
-              roughness: 0.7,
-              metalness: 0.0,
-              envMapIntensity: 1.0
             });
           }
         }
