@@ -564,6 +564,8 @@
         }
     } else {
         console.log('🔧 [SLIDESHOW] Iframe mode - waiting for parent message');
+        // Notify parent that slideshow is ready
+        window.parent.postMessage('slideshowReady', '*');
     }
 </script>
 
