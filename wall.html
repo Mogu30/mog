@@ -29,7 +29,7 @@
     pointer-events: auto;
   }
   #back-btn:hover { background: rgba(255, 255, 255, 0.1); }
-  
+
   /* Loading overlay - HIDDEN, keep homepage visible */
   #loading {
     position: fixed;
@@ -194,6 +194,7 @@
     z-index: 2;
   }
   #info-close:hover { background: rgba(255,255,255,0.22); transform: scale(1.1) rotate(90deg); }
+
 </style>
 
 <!-- GSAP for animations -->
@@ -320,10 +321,14 @@ let blockerPlane = null;
 
 // ✨ HOVER GLOW
 const GLOW_TARGET_NAMES = ['monitro', 'globe', 'chair', 'arch', 'guitar'];
+
+// ✨ PARTICLES
+let particleSystem = null;
 const glowTargetMeshes = []; // ONLY the ~5 target meshes — tiny raycast list
 const glowShells = new Map();
 let currentHovered = null;
 let glowNeedsUpdate = false;
+const _localY = new THREE.Vector3(0, 1, 0); // cached — reused every frame for globe spin
 
 // 📋 INFO PANEL DATA — swap in real content whenever you're ready
 const INFO_DATA = {
@@ -508,6 +513,23 @@ async function init() {
   // Add Ambient Light for general scene illumination
   const ambientLight = new THREE.AmbientLight(0xffffff, 5.0); // Set to 2.0 (your preferred value)
   scene.add(ambientLight);
+
+  // 💙 Blue directional light
+  const blueLight = new THREE.DirectionalLight(0x191970, 20);
+  blueLight.position.set(70, 30, -100);
+  blueLight.target.position.set(0, WALL_CONFIG.centerY, 0);
+  blueLight.castShadow = true;
+  blueLight.shadow.mapSize.width  = 2048;
+  blueLight.shadow.mapSize.height = 2048;
+  blueLight.shadow.camera.near   = 0.5;
+  blueLight.shadow.camera.far    = 300;
+  blueLight.shadow.camera.left   = -50;
+  blueLight.shadow.camera.right  =  50;
+  blueLight.shadow.camera.top    =  50;
+  blueLight.shadow.camera.bottom = -50;
+  blueLight.shadow.bias          = -0.001;
+  scene.add(blueLight);
+  scene.add(blueLight.target);
   console.log('✅ Ambient light added (intensity: 5.0)');
 
   // 4. Environment (HDRI) - ENABLED
@@ -772,7 +794,8 @@ async function loadGLB() {
       'bg': 'assets/textures/BG_Bake1_CyclesBake_COMBINED.png',
       'decorations': 'assets/textures/DECORATIONS_Bake1_CyclesBake_COMBINED.png',
       'furniture': 'assets/textures/furnitrure_Bake1_CyclesBake_COMBINED.png', // fixed key spelling
-      'walls': 'assets/textures/WALLS_Bake1_CyclesBake_COMBINED.png'
+      'walls': 'assets/textures/WALLS_Bake1_CyclesBake_COMBINED.png',
+      'eye': 'assets/textures/eye_Bake1_CyclesBake_COMBINED.png',
     };
     
     for (const [key, path] of Object.entries(texturePaths)) {
@@ -850,6 +873,9 @@ async function loadGLB() {
         } else if (meshName.includes('bg') && bakedTextures.bg) {
           bakedTexture = bakedTextures.bg;
           console.log(`  ✅ Matched to BG texture`);
+        } else if (meshName.includes('eye') && bakedTextures.eye) {
+          bakedTexture = bakedTextures.eye;
+          console.log(`  ✅ Matched to EYE texture`);
         } else if (["arch","chair","globe","guitar","monitro"].some(t => meshName === t || meshName.startsWith(t+"_")) && bakedTextures.animated) {
           bakedTexture = bakedTextures.animated;
           console.log(`  ✅ Matched to ANIMATED texture (fallback for arch/chair/globe/guitar/monitro)`);
@@ -865,9 +891,9 @@ async function loadGLB() {
             map: bakedTexture,
             roughness: 0.7,
             metalness: 0.1,
-            envMapIntensity: 0.5 // Increase for stronger HDRI effect
+            envMapIntensity: 1
           });
-          console.log(`🎨 Applied baked texture (with env lighting) to ${child.name}`);
+          console.log(`🎨 Applied baked texture to ${child.name}`);
         } else {
           // No baked texture - create default material
           if (!child.material) {
@@ -880,7 +906,8 @@ async function loadGLB() {
           }
         }
         
-        child.material.side = THREE.DoubleSide;
+        // DoubleSide breaks shadow casting in Three.js — use FrontSide
+        child.material.side = THREE.FrontSide;
         sceneMeshes.push(child);
 
         // ✨ If this is a glow target, add to the tiny raycast list
@@ -1039,44 +1066,62 @@ async function loadGLB() {
       hoverAnims.guitar.meshes.forEach(m => m.userData.restY = m.position.y);
     }
 
-    // 🌍 World-space pivots for globe + chair so they spin on TRUE vertical axis
-    // Each mesh gets reparented into a pivot Object3D placed at its world position.
-    // Spinning the pivot's Y = spinning around world up, regardless of baked mesh rotation.
-    function createSpinPivot(mesh) {
-      const pivot = new THREE.Object3D();
-      // Get world position/rotation of the mesh
-      const worldPos = new THREE.Vector3();
-      const worldQuat = new THREE.Quaternion();
-      const worldScale = new THREE.Vector3();
-      mesh.matrixWorld.decompose(worldPos, worldQuat, worldScale);
-
-      // Place pivot at mesh's world position, inside the same parent
-      const parent = mesh.parent;
-      parent.add(pivot);
-      pivot.position.copy(mesh.position); // local position within parent
-
-      // Reparent mesh into pivot at local origin
-      mesh.removeFromParent();
-      pivot.add(mesh);
-      // Offset mesh so pivot center = mesh center (zero local position)
-      mesh.position.set(0, 0, 0);
-
-      mesh.userData.spinPivot = pivot;
-      return pivot;
-    }
-
-    hoverAnims.globe.meshes.forEach(m => { hoverAnims.globe.pivots = hoverAnims.globe.pivots || []; hoverAnims.globe.pivots.push(createSpinPivot(m)); });
-    hoverAnims.chair.meshes.forEach(m => { hoverAnims.chair.pivots = hoverAnims.chair.pivots || []; hoverAnims.chair.pivots.push(createSpinPivot(m)); });
-
-    // 🌍 Fix globe tilt — override the baked rotation so it sits upright
-    // Adjust GLOBE_TILT_X to dial in the exact angle you want (radians, 0 = perfectly upright)
-    const GLOBE_TILT_X = 0.0; // ← tweak this
-    const GLOBE_TILT_Z = 0.0; // ← and this if needed
-    hoverAnims.globe.meshes.forEach(m => {
-      m.rotation.x = GLOBE_TILT_X;
-      m.rotation.z = GLOBE_TILT_Z;
-    });
     console.log('✅ GLB Loaded successfully');
+
+    // 👁️ Eye animation — all positions relative to origin (imported position)
+    // Each pass: fixed start→end, alternating direction, different Y each time
+    const eyeMesh = sceneMeshes.find(m => m.name.toLowerCase().includes('eye'));
+    if (eyeMesh) {
+      const ox = eyeMesh.position.x; // origin X
+      const oy = eyeMesh.position.y; // origin Y
+      const travel = 50;
+
+      // Define passes: [fromX, fromY, toX, toY] — all relative to origin
+      const passes = [
+        [ox,          oy,      ox - travel, oy     ],
+        [ox - travel, oy - 10, ox,          oy - 10],
+        [ox,          oy - 5,  ox - travel, oy - 5 ],
+        [ox - travel, oy - 3,  ox,          oy - 3 ],
+        [ox,          oy - 8,  ox - travel, oy - 8 ],
+        [ox - travel, oy,      ox,          oy     ],
+      ];
+      let passIndex = 0;
+      let bobTween  = null;
+
+      function nextPass() {
+        const [fromX, fromY, toX, toY] = passes[passIndex % passes.length];
+        passIndex++;
+        const duration = 4;
+
+        // Snap to start of this pass
+        gsap.set(eyeMesh.position, { x: fromX, y: fromY });
+
+        // Bob during sweep
+        if (bobTween) bobTween.kill();
+        bobTween = gsap.to(eyeMesh.position, {
+          y: fromY + 1.2,
+          duration: 1.3,
+          ease: 'sine.inOut',
+          yoyo: true,
+          repeat: -1,
+        });
+
+        gsap.to(eyeMesh.position, {
+          x: toX,
+          duration,
+          ease: 'none',
+          onComplete: () => {
+            if (bobTween) bobTween.kill();
+            gsap.delayedCall(30 + Math.random() * 10, nextPass);
+          }
+        });
+      }
+
+      nextPass();
+      console.log('👁️ Eye animation started — origin:', ox, oy);
+    } else {
+      console.warn('👁️ eye_Baked mesh not found');
+    }
     
     // 🔍 DEBUG: List all individual objects
     console.log('');
@@ -1475,12 +1520,14 @@ function animate() {
     });
   }
 
-  // Globe + Chair: spin pivot on world Y
-  if (hoverAnims.globe.active && hoverAnims.globe.pivots) {
-    hoverAnims.globe.pivots.forEach(p => { p.rotation.y += 0.02; });
+  // Globe: spin on LOCAL Y (the mesh's own "up" from Blender, not world up)
+  if (hoverAnims.globe.active) {
+    hoverAnims.globe.meshes.forEach(m => {
+      m.rotateOnAxis(_localY, 0.02);
+    });
   }
-  if (hoverAnims.chair.active && hoverAnims.chair.pivots) {
-    hoverAnims.chair.pivots.forEach(p => { p.rotation.y += 0.025; });
+  if (hoverAnims.chair.active) {
+    hoverAnims.chair.meshes.forEach(m => { m.rotation.y += 0.025; });
   }
 
   // Arch: sequential hop — each arch hops in turn, 200ms apart
@@ -1508,18 +1555,12 @@ function animate() {
   }
 }
 
-// ============================================
-// ✨ PARTICLES
-// ============================================
-
-let particleSystem = null;
-
 function createParticles() {
-  const COUNT = 1000;
+  const COUNT = 2000;
 
   // ── CONFIG ─────────────────────────────────
   const PARTICLE_COLOR = new THREE.Color(0.45, 0.75, 1.0); // original blue-white
-  const PARTICLE_SIZE  = 10;
+  const PARTICLE_SIZE  = 5.0;
   const SPREAD_X       = 50;
   const SPREAD_Y       = 35;
   const SPREAD_Z       = 60;   // deep — some close, some very far
