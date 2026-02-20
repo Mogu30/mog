@@ -745,7 +745,6 @@ const AppScaler = {
 const Preloader = {
   loadedCount: 0,
   totalAssets: CONFIG.ASSETS.CRITICAL.length,
-  forceLoadTriggered: false,
   loadingComplete: false,
 
   init() {
@@ -757,35 +756,33 @@ const Preloader = {
     this.totalAssets = CONFIG.ASSETS.CRITICAL.length + 2;
 
     window.addEventListener('message', (event) => {
-      if (event.data === 'sceneReady')    { console.log('✅ Wall ready');      this.updateProgress(); }
-      if (event.data === 'slideshowReady'){ console.log('✅ Slideshow ready'); this.updateProgress(); }
+      if (event.data === 'sceneReady')    { console.log('✅ Wall ready (iframe loaded)');      this.updateProgress('wall.html iframe'); }
+      if (event.data === 'slideshowReady'){ console.log('✅ Slideshow ready (iframe loaded)'); this.updateProgress('slideshow.html iframe'); }
     });
 
+    console.log('Preloader: Setting wallIframe.src = wall.html');
     wallIframe.src = 'wall.html';
+    console.log('Preloader: Setting eduIframe.src = slideshow.html');
     eduIframe.src  = 'slideshow.html';
 
     CONFIG.ASSETS.CRITICAL.forEach(src => {
+      console.log('Preloader: Loading asset:', src);
       if (src.endsWith('.webm') || src.endsWith('.mp4')) this.preloadVideo(src);
       else this.preloadImage(src);
     });
 
-    this.updateProgress = () => {
+    this.updateProgress = (what) => {
       this.loadedCount++;
       const pct = Math.round((this.loadedCount / this.totalAssets) * 100);
-      console.log(`Loading ${this.loadedCount}/${this.totalAssets} (${pct}%)`);
-      if (this.loadedCount >= this.totalAssets && !this.forceLoadTriggered) {
-        this.forceLoadTriggered = true;
+      if (what) {
+        console.log(`Loaded: ${what} (${this.loadedCount}/${this.totalAssets}, ${pct}%)`);
+      } else {
+        console.log(`Loaded: ${this.loadedCount}/${this.totalAssets} (${pct}%)`);
+      }
+      if (this.loadedCount >= this.totalAssets) {
         this.completeLoading(loadingScreen, container);
       }
     };
-
-    setTimeout(() => {
-      if (!this.forceLoadTriggered) {
-        console.warn('⚠️ Loading timeout - forcing');
-        this.forceLoadTriggered = true;
-        this.completeLoading(loadingScreen, container);
-      }
-    }, CONFIG.TIMING.LOADING_TIMEOUT);
   },
 
   async completeLoading(loadingScreen, container) {
@@ -829,17 +826,19 @@ const Preloader = {
   },
 
   preloadImage(src) {
+    console.log('Preloader: Starting image load:', src);
     const i = new Image();
-    i.onload  = () => this.updateProgress();
-    i.onerror = () => { console.warn(`Failed: ${src}`); this.updateProgress(); };
+    i.onload  = () => { console.log('Preloader: Image loaded:', src); this.updateProgress(src); };
+    i.onerror = () => { console.warn(`Failed: ${src}`); this.updateProgress(src); };
     i.src = src;
   },
 
   preloadVideo(src) {
+    console.log('Preloader: Starting video load:', src);
     const v = document.createElement('video');
     v.preload = 'auto';
-    v.onloadeddata = () => { console.log(`✅ Video: ${src}`); this.updateProgress(); };
-    v.onerror      = () => { console.warn(`Failed video: ${src}`); this.updateProgress(); };
+    v.onloadeddata = () => { console.log(`✅ Video loaded: ${src}`); this.updateProgress(src); };
+    v.onerror      = () => { console.warn(`Failed video: ${src}`); this.updateProgress(src); };
     v.src = src;
     v.load();
   }
