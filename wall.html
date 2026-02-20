@@ -511,7 +511,7 @@ async function init() {
   RectAreaLightUniformsLib.init();
 
   // Add Ambient Light for general scene illumination
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Low — shadows already baked into textures
+  const ambientLight = new THREE.AmbientLight(0xffffff, 5); // Low — shadows already baked into textures
   scene.add(ambientLight);
 
   // 💙 Blue directional light
