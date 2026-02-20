@@ -206,7 +206,8 @@
     "three": "https://unpkg.com/three@0.167.0/build/three.module.js",
     "three/addons/": "https://unpkg.com/three@0.167.0/examples/jsm/",
     "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js",
-    "postprocessing": "https://unpkg.com/postprocessing@6.36.3/build/index.js"
+    "postprocessing": "https://unpkg.com/postprocessing@6.36.3/build/index.js",
+    "three-good-godrays": "https://unpkg.com/three-good-godrays@0.8.1/build/three-good-godrays.esm.js"
   }
 }
 </script>
@@ -511,11 +512,11 @@ async function init() {
   RectAreaLightUniformsLib.init();
 
   // Add Ambient Light for general scene illumination
-  const ambientLight = new THREE.AmbientLight(0xffffff, 5); // Low — shadows already baked into textures
+  const ambientLight = new THREE.AmbientLight(0xffffff, 5.0); // Set to 2.0 (your preferred value)
   scene.add(ambientLight);
 
   // 💙 Blue directional light
-  const blueLight = new THREE.DirectionalLight(0x191970, 0.5);
+  const blueLight = new THREE.DirectionalLight(0x191970, 20);
   blueLight.position.set(70, 30, -100);
   blueLight.target.position.set(0, WALL_CONFIG.centerY, 0);
   blueLight.castShadow = true;
@@ -725,7 +726,7 @@ async function createWall(material) {
     bumpScale: 0.2,
     roughness: 0.7, 
     metalness: 0.1,
-    envMapIntensity: 0.1
+    envMapIntensity: 0.5
   });
 
   // Back Barrier
@@ -892,7 +893,6 @@ async function loadGLB() {
           });
           console.log(`🎨 Applied baked texture to ${child.name}`);
         } else {
-          // No baked texture - create default material
           if (!child.material) {
             child.material = new THREE.MeshBasicMaterial({
               color: 0xcccccc,
@@ -1274,8 +1274,7 @@ async function setupGodRaysSystem() {
   composer.addPass(renderPass);
 
   // 3. Import and Setup GodraysPass
-  const GodraysPassModule = await import('https://unpkg.com/three-good-godrays@0.8.1/build/three-good-godrays.esm.js');
-  const { GodraysPass } = GodraysPassModule;
+  const { GodraysPass } = await import('three-good-godrays');
 
   godRaysPass = new GodraysPass(godRaysLight, camera, {
     density: GOD_RAYS_CONFIG.density,
@@ -1284,7 +1283,7 @@ async function setupGodRaysSystem() {
     edgeRadius: 2,
     distanceAttenuation: 2,
     color: godRayColor,  // Use the converted RGB color
-    raymarchSteps: 30,
+    raymarchSteps: 70,
     blur: true,
     gammaCorrection: true
   });
@@ -1478,6 +1477,7 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
+  if (document.hidden) return;
   
   // Subtle Camera Parallax
   if (initialCameraPos && !isDragging) {
