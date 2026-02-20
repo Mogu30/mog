@@ -46,6 +46,154 @@
     pointer-events: none;
   }
   #loading-progress { margin-top: 10px; font-size: 14px; }
+
+  /* ── INFO MODAL ─────────────────────────────── */
+  #info-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #info-modal.visible {
+    pointer-events: auto;
+  }
+
+  /* dark backdrop */
+  #info-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  #info-card {
+    position: relative;
+    width: min(680px, 92vw);
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 24px;
+    overflow: hidden;
+    color: #fff;
+    font-family: 'Segoe UI', sans-serif;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  }
+
+  /* card enter */
+  @keyframes cardIn {
+    0%   { opacity: 0; transform: translateY(52px) scale(0.92) rotateX(8deg); filter: blur(8px); }
+    60%  { filter: blur(0px); }
+    100% { opacity: 1; transform: translateY(0)    scale(1)    rotateX(0deg); }
+  }
+  /* card exit */
+  @keyframes cardOut {
+    0%   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0px); }
+    100% { opacity: 0; transform: translateY(28px) scale(0.95); filter: blur(6px); }
+  }
+  /* backdrop enter */
+  @keyframes backdropIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes backdropOut { from { opacity: 1; } to { opacity: 0; } }
+
+  /* text stagger */
+  @keyframes textIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  #info-card.animating-in {
+    animation: cardIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  #info-card.animating-out {
+    animation: cardOut 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  #info-backdrop.animating-in  { animation: backdropIn  0.35s ease forwards; }
+  #info-backdrop.animating-out { animation: backdropOut 0.28s ease forwards; }
+
+  /* stagger tag → title → desc on open */
+  #info-card.animating-in #info-tag  { animation: textIn 0.4s 0.18s ease both; }
+  #info-card.animating-in #info-title{ animation: textIn 0.4s 0.26s ease both; }
+  #info-card.animating-in #info-desc { animation: textIn 0.4s 0.34s ease both; }
+  /* image slides up */
+  #info-card.animating-in #info-img-wrap {
+    animation: textIn 0.5s 0.05s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  #info-img-wrap {
+    width: 100%;
+    height: 280px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.04);
+    position: relative;
+  }
+  #info-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0.85;
+  }
+  #info-img-wrap .img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 88px;
+    background: linear-gradient(135deg, rgba(60,80,120,0.6), rgba(20,20,40,0.8));
+  }
+
+  #info-body { padding: 32px 40px 40px; }
+  #info-tag {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(120,180,255,0.8);
+    margin-bottom: 10px;
+  }
+  #info-title {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin: 0 0 14px;
+    line-height: 1.2;
+  }
+  #info-desc {
+    font-size: 15px;
+    line-height: 1.75;
+    color: rgba(255,255,255,0.72);
+    margin: 0;
+  }
+
+  /* glowing top border */
+  #info-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(100,160,255,0.8), transparent);
+  }
+
+  #info-close {
+    position: absolute;
+    top: 14px; right: 16px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    width: 32px; height: 32px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+    z-index: 2;
+  }
+  #info-close:hover { background: rgba(255,255,255,0.22); transform: scale(1.1) rotate(90deg); }
 </style>
 
 <!-- GSAP for animations -->
@@ -66,6 +214,22 @@
 
 <div id="canvas-container"></div>
 <button id="back-btn">← BACK</button>
+
+<!-- INFO MODAL -->
+<div id="info-modal">
+  <div id="info-backdrop"></div>
+  <div id="info-card">
+    <button id="info-close">✕</button>
+    <div id="info-img-wrap">
+      <div class="img-placeholder" id="info-emoji">🎸</div>
+    </div>
+    <div id="info-body">
+      <div id="info-tag">OBJECT</div>
+      <h2 id="info-title">Title</h2>
+      <p id="info-desc">Description goes here.</p>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -152,7 +316,142 @@ let loadedLightmaps = {}; // Store loaded lightmap textures
 let composer, godRaysPass;
 let godRaysLight;
 let volumetricLights = []; // Array of volumetric light beam meshes
-let blockerPlane = null; // Plane to block god rays
+let blockerPlane = null;
+
+// ✨ HOVER GLOW
+const GLOW_TARGET_NAMES = ['monitro', 'globe', 'chair', 'arch', 'guitar'];
+const glowTargetMeshes = []; // ONLY the ~5 target meshes — tiny raycast list
+const glowShells = new Map();
+let currentHovered = null;
+let glowNeedsUpdate = false;
+
+// 📋 INFO PANEL DATA — swap in real content whenever you're ready
+const INFO_DATA = {
+  guitar: {
+    tag:   'INSTRUMENT',
+    title: 'The Guitar',
+    desc:  'A placeholder description for the guitar. Talk about its story, origin, or whatever makes it special in your world.',
+    emoji: '🎸',
+    img:   null, // set to 'path/to/image.jpg' to use a real image
+  },
+  globe: {
+    tag:   'ARTIFACT',
+    title: 'The Globe',
+    desc:  'A placeholder description for the globe. Maybe it shows an ancient map, or a world that no longer exists.',
+    emoji: '🌍',
+    img:   null,
+  },
+  chair: {
+    tag:   'FURNITURE',
+    title: 'The Chair',
+    desc:  'A placeholder description for the chair. Every great room has one seat that means something.',
+    emoji: '🪑',
+    img:   null,
+  },
+  monitro: {
+    tag:   'TECHNOLOGY',
+    title: 'The Monitor',
+    desc:  'A placeholder description for the monitor. A window into something — or someone.',
+    emoji: '🖥️',
+    img:   null,
+  },
+  arch: {
+    tag:   'ARCHITECTURE',
+    title: 'The Arch',
+    desc:  'A placeholder description for the arch. A threshold between what is and what could be.',
+    emoji: '🏛️',
+    img:   null,
+  },
+};
+
+// Modal DOM refs
+const infoModal    = document.getElementById('info-modal');
+const infoCard     = document.getElementById('info-card');
+const infoBackdrop = document.getElementById('info-backdrop');
+const infoImgWrap  = document.getElementById('info-img-wrap');
+const infoTag      = document.getElementById('info-tag');
+const infoTitle    = document.getElementById('info-title');
+const infoDesc     = document.getElementById('info-desc');
+function openInfoPanel(baseKey) {
+  const data = INFO_DATA[baseKey];
+  if (!data) return;
+
+  infoTag.textContent   = data.tag;
+  infoTitle.textContent = data.title;
+  infoDesc.textContent  = data.desc;
+
+  infoImgWrap.innerHTML = '';
+  if (data.img) {
+    const img = document.createElement('img');
+    img.src = data.img;
+    img.alt = data.title;
+    infoImgWrap.appendChild(img);
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'img-placeholder';
+    ph.textContent = data.emoji;
+    infoImgWrap.appendChild(ph);
+  }
+
+  // Reset any leftover exit classes
+  infoCard.classList.remove('animating-out');
+  infoBackdrop.classList.remove('animating-out');
+
+  infoModal.style.opacity = '1';
+  infoModal.style.pointerEvents = 'auto';
+  infoModal.classList.add('visible');
+
+  // Trigger enter animations
+  infoCard.classList.add('animating-in');
+  infoBackdrop.classList.add('animating-in');
+}
+
+function closeInfoPanel() {
+  // Swap to exit animation classes
+  infoCard.classList.remove('animating-in');
+  infoBackdrop.classList.remove('animating-in');
+  infoCard.classList.add('animating-out');
+  infoBackdrop.classList.add('animating-out');
+
+  setTimeout(() => {
+    infoModal.classList.remove('visible');
+    infoModal.style.pointerEvents = 'none';
+    infoModal.style.opacity = '0';
+    infoCard.classList.remove('animating-out');
+    infoBackdrop.classList.remove('animating-out');
+  }, 300);
+}
+
+// Close on backdrop or X button
+document.getElementById('info-backdrop').addEventListener('click', closeInfoPanel);
+document.getElementById('info-close').addEventListener('click', closeInfoPanel);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInfoPanel(); });
+
+// 🎭 HOVER ANIMATIONS — all state lives here, animate() reads it each frame
+const hoverAnims = {
+  guitar: {
+    active: false,
+    meshes: [],
+    floatOffset: 0,   // current float height (GSAP tweens this)
+    tiltDir: 1,       // left/right alternator
+  },
+  globe: {
+    active: false,
+    meshes: [],
+  },
+  chair: {
+    active: false,
+    meshes: [],
+  },
+  arch: {
+    active: false,
+    sorted: [],       // arch meshes sorted arch → arch_7
+    restYs: [],       // original Y per arch mesh
+    hopIndex: 0,      // which arch is currently hopping
+    hopTimer: 0,      // countdown to next hop (ms)
+    hopOffset: [],    // current Y lift per arch mesh (GSAP tweens these)
+  },
+};
 
 init();
 
@@ -240,6 +539,9 @@ async function init() {
 
   // 🌟 Setup God Rays
   await setupGodRaysSystem();
+
+  // ✨ Particles
+  createParticles();
 
   // Scene is ready - just notify parent (no fade, scene is already visible)
   window.parent.postMessage('sceneReady', '*');
@@ -579,8 +881,13 @@ async function loadGLB() {
         }
         
         child.material.side = THREE.DoubleSide;
-
         sceneMeshes.push(child);
+
+        // ✨ If this is a glow target, add to the tiny raycast list
+        const n = child.name.toLowerCase();
+        if (GLOW_TARGET_NAMES.some(t => n === t || n.startsWith(t+'_') || n.startsWith(t+'.') || n.includes(t))) {
+          glowTargetMeshes.push(child);
+        }
         
         // Check for camera sphere
         if (meshName.includes('sphere')) {
@@ -609,6 +916,166 @@ async function loadGLB() {
     
     model.position.set(0, 0, -1.9);
     scene.add(model);
+
+    // ✨ GLOW COLORS — one per object, change these freely
+    const GLOW_COLORS = {
+      guitar:  new THREE.Color(1.0,  0.35, 0.1 ),  // 🔥 orange
+      globe:   new THREE.Color(0.1,  0.9,  0.4 ),  // 🌍 green
+      chair:   new THREE.Color(0.8,  0.3,  1.0 ),  // 💜 purple
+      monitro: new THREE.Color(0.0,  1.0,  1.0 ),  // 🖥️ bright cyan
+      arch:    new THREE.Color(1.0,  0.85, 0.2 ),  // 🏛️ gold
+    };
+    // Lower power = glow spreads further from edges (good for flat meshes like the monitor)
+    const GLOW_POWER = {
+      monitro: 0.6,  // spreads across more of the flat screen surface
+    };
+
+    // ✨ Fresnel glow — custom shader reads view angle per-pixel,
+    //    bright at silhouette edges, fully transparent at center
+    const fresnelMat = new THREE.ShaderMaterial({
+      uniforms: {
+        fresnelColor: { value: new THREE.Color(0.25, 0.55, 1.0) },
+        fresnelPower: { value: 1.2 },
+        fresnelStrength: { value: 2.5 },
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        void main() {
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vNormal   = normalize(normalMatrix * normal);
+          vViewDir  = normalize(cameraPosition - worldPos.xyz);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3  fresnelColor;
+        uniform float fresnelPower;
+        uniform float fresnelStrength;
+        varying vec3  vNormal;
+        varying vec3  vViewDir;
+        void main() {
+          float fresnel = 1.0 - clamp(dot(normalize(vNormal), normalize(vViewDir)), 0.0, 1.0);
+          fresnel = pow(fresnel, fresnelPower) * fresnelStrength;
+          gl_FragColor = vec4(fresnelColor * fresnel, fresnel);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.FrontSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+
+    // Backface shell material for flat/thin meshes (monitor) — works regardless of normals
+    const backfaceMat = new THREE.MeshBasicMaterial({
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    glowTargetMeshes.forEach(mesh => {
+      const base = mesh.name.toLowerCase().split('_')[0].split('.')[0];
+      let shell;
+
+      if (base === 'monitro') {
+        // Flat mesh — use backface shell with a fixed world-space expansion
+        const mat = backfaceMat.clone();
+        mat.color = GLOW_COLORS['monitro'] || new THREE.Color(0.0, 1.0, 1.0);
+        shell = new THREE.Mesh(mesh.geometry, mat);
+        // Expand enough to be visible on a thin mesh
+        shell.scale.setScalar(1.12);
+      } else {
+        // Normal 3D mesh — use Fresnel
+        const mat = fresnelMat.clone();
+        if (GLOW_COLORS[base]) mat.uniforms.fresnelColor.value = GLOW_COLORS[base];
+        if (GLOW_POWER[base])  mat.uniforms.fresnelPower.value  = GLOW_POWER[base];
+        shell = new THREE.Mesh(mesh.geometry, mat);
+      }
+
+      shell.visible = false;
+      shell.renderOrder = 999;
+      mesh.add(shell);
+      glowShells.set(mesh, shell);
+    });
+    console.log(`✨ Glow shells built for ${glowShells.size} meshes`);
+
+    // 🎭 Populate hover animation mesh lists
+    sceneMeshes.forEach(mesh => {
+      const n = mesh.name.toLowerCase();
+      if (n === 'guitar' || n.startsWith('guitar_') || n.startsWith('guitar.')) {
+        hoverAnims.guitar.meshes.push(mesh);
+      }
+      if (n === 'globe' || n.startsWith('globe_') || n.startsWith('globe.')) {
+        hoverAnims.globe.meshes.push(mesh);
+      }
+      if (n === 'chair' || n.startsWith('chair_') || n.startsWith('chair.')) {
+        hoverAnims.chair.meshes.push(mesh);
+      }
+      if (n === 'arch' || n.startsWith('arch_') || n.startsWith('arch.')) {
+        hoverAnims.arch.sorted.push(mesh);
+      }
+    });
+
+    // Sort arch meshes: 'arch' first, then arch_1 → arch_7 by number
+    hoverAnims.arch.sorted.sort((a, b) => {
+      const numA = parseInt(a.name.replace(/\D/g,'')) || 0;
+      const numB = parseInt(b.name.replace(/\D/g,'')) || 0;
+      return numA - numB;
+    });
+
+    // Store rest positions and init hop offsets
+    hoverAnims.arch.sorted.forEach(m => {
+      hoverAnims.arch.restYs.push(m.position.y);
+      hoverAnims.arch.hopOffset.push(0);
+    });
+
+    // Store guitar rest Y
+    if (hoverAnims.guitar.meshes.length > 0) {
+      hoverAnims.guitar.meshes.forEach(m => m.userData.restY = m.position.y);
+    }
+
+    // 🌍 World-space pivots for globe + chair so they spin on TRUE vertical axis
+    // Each mesh gets reparented into a pivot Object3D placed at its world position.
+    // Spinning the pivot's Y = spinning around world up, regardless of baked mesh rotation.
+    function createSpinPivot(mesh) {
+      const pivot = new THREE.Object3D();
+      // Get world position/rotation of the mesh
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+      const worldScale = new THREE.Vector3();
+      mesh.matrixWorld.decompose(worldPos, worldQuat, worldScale);
+
+      // Place pivot at mesh's world position, inside the same parent
+      const parent = mesh.parent;
+      parent.add(pivot);
+      pivot.position.copy(mesh.position); // local position within parent
+
+      // Reparent mesh into pivot at local origin
+      mesh.removeFromParent();
+      pivot.add(mesh);
+      // Offset mesh so pivot center = mesh center (zero local position)
+      mesh.position.set(0, 0, 0);
+
+      mesh.userData.spinPivot = pivot;
+      return pivot;
+    }
+
+    hoverAnims.globe.meshes.forEach(m => { hoverAnims.globe.pivots = hoverAnims.globe.pivots || []; hoverAnims.globe.pivots.push(createSpinPivot(m)); });
+    hoverAnims.chair.meshes.forEach(m => { hoverAnims.chair.pivots = hoverAnims.chair.pivots || []; hoverAnims.chair.pivots.push(createSpinPivot(m)); });
+
+    // 🌍 Fix globe tilt — override the baked rotation so it sits upright
+    // Adjust GLOBE_TILT_X to dial in the exact angle you want (radians, 0 = perfectly upright)
+    const GLOBE_TILT_X = 0.0; // ← tweak this
+    const GLOBE_TILT_Z = 0.0; // ← and this if needed
+    hoverAnims.globe.meshes.forEach(m => {
+      m.rotation.x = GLOBE_TILT_X;
+      m.rotation.z = GLOBE_TILT_Z;
+    });
     console.log('✅ GLB Loaded successfully');
     
     // 🔍 DEBUG: List all individual objects
@@ -812,6 +1279,70 @@ function createBlockerPlane(config) {
 }
 
 // ============================================
+// ✨ HOVER GLOW
+// ============================================
+
+function onHoverEnter(mesh) {
+  const n = mesh.name.toLowerCase();
+  const base = n.split('_')[0].split('.')[0];
+
+  if (base === 'guitar') {
+    hoverAnims.guitar.active = true;
+    // Float up
+    hoverAnims.guitar.meshes.forEach(m => {
+      gsap.to(m.position, { y: m.userData.restY + 0.8, duration: 0.5, ease: 'power2.out' });
+    });
+  }
+  if (base === 'globe')  hoverAnims.globe.active = true;
+  if (base === 'chair')  hoverAnims.chair.active = true;
+  if (base === 'arch') {
+    hoverAnims.arch.active = true;
+    hoverAnims.arch.hopIndex = 0;
+    hoverAnims.arch.hopTimer = 0;
+  }
+}
+
+function onHoverLeave(mesh) {
+  const n = mesh.name.toLowerCase();
+  const base = n.split('_')[0].split('.')[0];
+
+  if (base === 'guitar') {
+    hoverAnims.guitar.active = false;
+    // Return to rest, reset tilt
+    hoverAnims.guitar.meshes.forEach(m => {
+      gsap.to(m.position, { y: m.userData.restY, duration: 0.4, ease: 'power2.inOut' });
+      gsap.to(m.rotation, { z: 0, duration: 0.4, ease: 'power2.inOut' });
+    });
+  }
+  if (base === 'globe') hoverAnims.globe.active = false;
+  if (base === 'chair') hoverAnims.chair.active = false;
+  if (base === 'arch') {
+    hoverAnims.arch.active = false;
+    // Drop any mid-hop arches back down
+    hoverAnims.arch.sorted.forEach((m, i) => {
+      gsap.to(m.position, { y: hoverAnims.arch.restYs[i], duration: 0.3, ease: 'power2.inOut' });
+    });
+  }
+}
+
+function updateHoverGlow() {
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(glowTargetMeshes, false);
+  const hit = hits.length > 0 ? hits[0].object : null;
+  if (hit === currentHovered) return;
+
+  if (currentHovered) {
+    glowShells.get(currentHovered).visible = false;
+    onHoverLeave(currentHovered);
+  }
+  currentHovered = hit;
+  if (hit) {
+    glowShells.get(hit).visible = true;
+    onHoverEnter(hit);
+  }
+}
+
+// ============================================
 // INTERACTION
 // ============================================
 
@@ -823,16 +1354,35 @@ function onMouseDown(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(physicsObjects.map(o => o.mesh), true);
 
-  if (intersects.length > 0) {
-    const hit = intersects[0];
+  // Step 1: check wall cubes first (they sit IN FRONT of the scene)
+  const wallMeshes = physicsObjects.map(o => o.mesh);
+  const wallHits = raycaster.intersectObjects(wallMeshes, false);
+
+  // Step 2: check glow targets (non-recursive — we stored the exact mesh refs)
+  const glowHits = raycaster.intersectObjects(glowTargetMeshes, false);
+
+  const wallDist = wallHits.length > 0 ? wallHits[0].distance : Infinity;
+  const glowDist = glowHits.length > 0 ? glowHits[0].distance : Infinity;
+
+  if (glowDist < Infinity && glowDist <= wallDist) {
+    // Glow target is closest (or no wall in the way) — open panel
+    const hit = glowHits[0].object;
+    const n = hit.name.toLowerCase();
+    const base = n.split('_')[0].split('.')[0];
+    console.log('🎯 Clicked glow target:', hit.name, '→ base:', base);
+    openInfoPanel(base);
+    return;
+  }
+
+  if (wallHits.length > 0) {
+    // Wall cube is closest — drag it
+    const hit = wallHits[0];
     const obj = physicsObjects.find(o => o.mesh === hit.object || o.mesh === hit.object.parent);
-    
     if (obj) {
       isDragging = true;
       obj.body.wakeUp();
-      
+
       const dragShape = new CANNON.Sphere(0.1);
       dragBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
       dragBody.addShape(dragShape);
@@ -843,7 +1393,7 @@ function onMouseDown(event) {
 
       const localPivot = new CANNON.Vec3();
       obj.body.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z), localPivot);
-      
+
       dragConstraint = new CANNON.PointToPointConstraint(obj.body, localPivot, dragBody, new CANNON.Vec3(0,0,0));
       world.addConstraint(dragConstraint);
 
@@ -855,6 +1405,7 @@ function onMouseDown(event) {
 function onMouseMove(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  if (glowTargetMeshes.length > 0) glowNeedsUpdate = true;
 
   // Handle dragging
   if (!isDragging || !dragBody) return;
@@ -907,12 +1458,151 @@ function animate() {
     obj.mesh.quaternion.copy(obj.body.quaternion);
   }
 
+  // ✨ Glow: tiny raycast, only when mouse moved, only against 5 meshes
+  if (glowNeedsUpdate) { glowNeedsUpdate = false; updateHoverGlow(); }
+
+  // ✨ Particles
+  if (particleSystem) particleSystem.material.uniforms.uTime.value += 0.016;
+
+  // 🎭 HOVER ANIMATIONS
+  const t = Date.now();
+
+  // Guitar: float + tilt left/right
+  if (hoverAnims.guitar.active) {
+    hoverAnims.guitar.meshes.forEach(m => {
+      // Gentle sway on Z
+      m.rotation.z = Math.sin(t * 0.002) * 0.18;
+    });
+  }
+
+  // Globe + Chair: spin pivot on world Y
+  if (hoverAnims.globe.active && hoverAnims.globe.pivots) {
+    hoverAnims.globe.pivots.forEach(p => { p.rotation.y += 0.02; });
+  }
+  if (hoverAnims.chair.active && hoverAnims.chair.pivots) {
+    hoverAnims.chair.pivots.forEach(p => { p.rotation.y += 0.025; });
+  }
+
+  // Arch: sequential hop — each arch hops in turn, 200ms apart
+  if (hoverAnims.arch.active) {
+    hoverAnims.arch.hopTimer -= 16; // ~60fps
+    if (hoverAnims.arch.hopTimer <= 0) {
+      const idx = hoverAnims.arch.hopIndex;
+      const mesh = hoverAnims.arch.sorted[idx];
+      if (mesh) {
+        const restY = hoverAnims.arch.restYs[idx];
+        gsap.to(mesh.position, { y: restY + 1.2, duration: 0.18, ease: 'power2.out',
+          onComplete: () => gsap.to(mesh.position, { y: restY, duration: 0.22, ease: 'bounce.out' })
+        });
+      }
+      hoverAnims.arch.hopIndex = (idx + 1) % hoverAnims.arch.sorted.length;
+      hoverAnims.arch.hopTimer = 180; // ms between hops
+    }
+  }
+
   // Render via Composer if available, else fallback
   if (composer) {
     composer.render();
   } else {
     renderer.render(scene, camera);
   }
+}
+
+// ============================================
+// ✨ PARTICLES
+// ============================================
+
+let particleSystem = null;
+
+function createParticles() {
+  const COUNT = 1000;
+
+  // ── CONFIG ─────────────────────────────────
+  const PARTICLE_COLOR = new THREE.Color(0.45, 0.75, 1.0); // original blue-white
+  const PARTICLE_SIZE  = 10;
+  const SPREAD_X       = 50;
+  const SPREAD_Y       = 35;
+  const SPREAD_Z       = 60;   // deep — some close, some very far
+  const Z_CENTER       = -15;  // center of depth range behind wall
+  // ───────────────────────────────────────────
+
+  const positions = new Float32Array(COUNT * 3);
+  const randoms   = new Float32Array(COUNT * 4);
+  // aRandom: x = drift phase X, y = drift phase Y, z = drift phase Z, w = size/speed seed
+
+  for (let i = 0; i < COUNT; i++) {
+    positions[i * 3 + 0] = (Math.random() - 0.5) * SPREAD_X;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * SPREAD_Y + 13.5;
+    positions[i * 3 + 2] = Z_CENTER + (Math.random() - 0.5) * SPREAD_Z;
+
+    randoms[i * 4 + 0] = Math.random() * Math.PI * 2; // phase X
+    randoms[i * 4 + 1] = Math.random() * Math.PI * 2; // phase Y
+    randoms[i * 4 + 2] = Math.random() * Math.PI * 2; // phase Z + fade
+    randoms[i * 4 + 3] = 0.2 + Math.random() * 0.8;  // speed & size seed
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aRandom',  new THREE.BufferAttribute(randoms, 4));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:  { value: 0 },
+      uColor: { value: PARTICLE_COLOR },
+      uSize:  { value: PARTICLE_SIZE },
+    },
+    vertexShader: `
+      attribute vec4  aRandom;
+      uniform   float uTime;
+      uniform   float uSize;
+      varying   float vAlpha;
+
+      void main() {
+        float speed = 0.08 + aRandom.w * 0.12; // slow — dust is lazy
+
+        vec3 pos = position;
+        // Each axis drifts independently with different frequencies
+        // so motion is truly random-feeling, not circular
+        pos.x += sin(uTime * speed       + aRandom.x) * 1.8
+               + cos(uTime * speed * 0.6 + aRandom.y) * 1.2;
+        pos.y += sin(uTime * speed * 0.7 + aRandom.y) * 1.4
+               + sin(uTime * speed * 0.4 + aRandom.z) * 0.9;
+        pos.z += cos(uTime * speed * 0.5 + aRandom.z) * 2.5
+               + sin(uTime * speed * 0.3 + aRandom.x) * 1.5;
+
+        // Fade: slow breathe per particle using its own phase
+        float breathe = 0.5 + 0.5 * sin(uTime * 0.35 * aRandom.w + aRandom.z);
+        vAlpha = breathe * breathe; // square for snappier fade
+
+        vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+        gl_Position  = projectionMatrix * mvPos;
+
+        // Size scales with depth — far = tiny, close = big, gives real parallax feel
+        float depth = clamp(1.0 / -mvPos.z, 0.0, 1.0);
+        gl_PointSize = uSize * aRandom.w * depth * 30.0;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3  uColor;
+      varying float vAlpha;
+
+      void main() {
+        float d = length(gl_PointCoord - vec2(0.5));
+        if (d > 0.5) discard;
+        // Sharp bright core, very tight falloff = star-like
+        float softness = pow(1.0 - d * 2.0, 3.0);
+        gl_FragColor = vec4(uColor, softness * vAlpha * 0.8);
+      }
+    `,
+    transparent: true,
+    depthWrite:  false,
+    blending:    THREE.AdditiveBlending,
+  });
+
+  particleSystem = new THREE.Points(geo, mat);
+  particleSystem.frustumCulled = false;
+  scene.add(particleSystem);
+  console.log(`✨ Dust particles created (${COUNT})`);
 }
 </script>
 
